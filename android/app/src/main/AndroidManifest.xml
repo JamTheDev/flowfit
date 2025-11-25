@@ -4,20 +4,27 @@
     
     <!-- Permissions for Samsung Health Sensor API -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <!-- Android 15+ health permission -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     
     <application
+        android:name=".FlowFitApp"
         android:label="FlowFit"
-        android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
         <!-- Wear OS metadata -->
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
+        
+        <!-- Disable Impeller to fix gralloc4 format errors on some devices -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         
         <activity
             android:name=".MainActivity"
@@ -60,6 +67,20 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="health" />
+            
+        <!-- Data listener service for receiving data from watch -->
+        <service
+            android:name=".PhoneDataListenerService"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/heart_rate"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

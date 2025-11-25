@@ -7,7 +7,7 @@ flutter run -d 6ece264d -t lib/main.dart
 
 
 
-> 📁 **Project recently reorganized!** All documentation is now in [`docs/`](docs/) and scripts in [`scripts/`](scripts/). See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
+> 📁 **Project recently reorganized!** All documentation is now in [`docs/`](docs/) and scripts in [`scripts/`](scripts/). See [docs/INDEX.md](docs/INDEX.md) for complete documentation index.
 
 ## 🎯 Overview
 
@@ -87,30 +87,35 @@ FlowFit is a dual-platform fitness app that runs on:
 
 ### Installation
 
-1. **Clone the repository**
+1. **Clone and setup**
    ```bash
    git clone <repository-url>
    cd flowfit
-   ```
-
-2. **Install dependencies**
-   ```bash
    flutter pub get
    ```
 
-3. **Configure Supabase**
+2. **Configure Supabase**
    - Copy `lib/secrets.dart.example` to `lib/secrets.dart`
    - Add your Supabase URL and anon key
 
-4. **Build for Watch**
+3. **Deploy to devices**
    ```bash
-   flutter run -d 6ece264d
+   # Watch app
+   scripts\test-watch.bat
+   
+   # Phone app (in another terminal)
+   scripts\test-phone.bat
    ```
 
-5. **Build for Phone**
-   ```bash
-   flutter run -d adb-RFAX21TD0NA-FFYRNh._adb-tls-connect._tcp
-   ```
+### Testing Connection
+
+1. Start phone app first
+2. Start watch app
+3. On watch: tap "Heart Rate" → "START"
+4. Wait for heart rate reading
+5. Tap "SEND" → check phone receives data
+
+**Troubleshooting?** See [WATCH_CONNECTION_GUIDE.md](docs/WATCH_CONNECTION_GUIDE.md)
 
 ## 🔧 Samsung Health Sensor Integration
 
@@ -163,25 +168,18 @@ HeartRateData {
 
 ### Watch App Features
 
-1. **Dashboard** (`lib/screens/wear/wear_dashboard.dart`)
-   - Real-time heart rate display
-   - Activity summary
-   - Quick action buttons
+1. **Clean Dashboard** (`lib/screens/wear/wear_dashboard.dart`)
+   - Single large "Heart Rate" button
+   - Minimal, focused design
+   - Optimized for small screens
 
-2. **Activity Tracker** (`lib/screens/workout/activity_tracker.dart`)
-   - Workout tracking with HR monitoring
-   - Exercise type selection
-   - Duration and calorie tracking
-
-3. **Sleep Mode** (`lib/screens/sleep/sleep_mode.dart`)
-   - Sleep tracking with sensors
-   - Sleep quality analysis
-   - Wake-up detection
-
-4. **Heart Rate Monitor** (`lib/screens/heart_rate_monitor_screen.dart`)
-   - Continuous HR monitoring
-   - Real-time graph
-   - IBI data visualization
+2. **Heart Rate Monitor** (`lib/screens/wear/wear_heart_rate_screen.dart`)
+   - Large BPM display (56pt font)
+   - Simple START/STOP button
+   - One-tap SEND to phone
+   - Real-time status indicator
+   - Samsung Health SDK integration
+   - IBI data collection
 
 ### Phone App Features
 
@@ -334,23 +332,18 @@ flutter run -d <device-id>
 
 ## 📚 Documentation
 
-### Setup & Quick Start
-- **[QUICK_START.md](docs/QUICK_START.md)** - Get started in 5 minutes
-- **[SAMSUNG_HEALTH_SETUP_GUIDE.md](docs/SAMSUNG_HEALTH_SETUP_GUIDE.md)** - Complete Samsung Health integration guide
-- **[IMPLEMENTATION_CHECKLIST.md](docs/IMPLEMENTATION_CHECKLIST.md)** - Step-by-step testing guide
+**📖 [Complete Documentation Index](docs/INDEX.md)** - Full list of all documentation
 
-### Architecture & Development
-- **[HEART_RATE_DATA_FLOW.md](docs/HEART_RATE_DATA_FLOW.md)** - Data flow architecture
-- **[WEAR_OS_SETUP.md](docs/WEAR_OS_SETUP.md)** - Wear OS development setup
-- **[BUILD_FIXES_APPLIED.md](docs/BUILD_FIXES_APPLIED.md)** - Recent build fixes
+### 🚀 Quick Links
+- **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** - Initial setup guide
+- **[WATCH_TO_PHONE_COMPLETE_FLOW.md](docs/WATCH_TO_PHONE_COMPLETE_FLOW.md)** - Live data flow from watch to phone
+- **[ALL_ISSUES_FIXED.md](docs/ALL_ISSUES_FIXED.md)** - Summary of all fixes applied
+- **[KOTLIN_COMPARISON_ANALYSIS.md](docs/KOTLIN_COMPARISON_ANALYSIS.md)** - Architecture comparison
 
-### Troubleshooting
-- **[INSTALLATION_TROUBLESHOOTING.md](docs/INSTALLATION_TROUBLESHOOTING.md)** - Installation issues and solutions
-- **[RUN_INSTRUCTIONS.md](docs/RUN_INSTRUCTIONS.md)** - Device-specific run commands
-
-### Improvements & Notes
-- **[VGV_IMPROVEMENTS.md](docs/VGV_IMPROVEMENTS.md)** - VGV best practices applied
-- **[WEAR_OS_IMPROVEMENTS.md](docs/WEAR_OS_IMPROVEMENTS.md)** - Wear OS optimizations
+### 🐛 Troubleshooting
+- **[CONNECTION_TIMEOUT_FIX.md](docs/CONNECTION_TIMEOUT_FIX.md)** - Connection issues
+- **[PHONE_RECEIVER_ISSUE.md](docs/PHONE_RECEIVER_ISSUE.md)** - Phone data reception
+- **[SMARTWATCH_TO_PHONE_DATA_FLOW.md](docs/SMARTWATCH_TO_PHONE_DATA_FLOW.md)** - Complete data flow guide
 
 ## 🔐 Permissions
 

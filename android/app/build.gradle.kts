@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.0"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -55,7 +56,14 @@ dependencies {
     implementation("com.google.android.support:wearable:2.9.0")
     compileOnly("com.google.android.wearable:wearable:2.9.0")
     
+    // Wearable Data Layer API for watch-phone communication
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    
     // Kotlin Coroutines for async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    
+    // Kotlin Serialization for JSON encoding/decoding
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
@@ -7,12 +8,15 @@ import '../models/heart_rate_data.dart';
 import '../models/permission_status.dart';
 import '../models/sensor_error.dart';
 import '../models/sensor_error_code.dart';
+import '../models/connection_state.dart' as conn;
 
 /// Service for managing communication with Samsung Health Sensor API
 /// via native Android code through Method Channel
 class WatchBridgeService {
   static const MethodChannel _methodChannel =
       MethodChannel('com.flowfit.watch/data');
+  static const MethodChannel _syncChannel =
+      MethodChannel('com.flowfit.watch/sync');
   static const EventChannel _heartRateEventChannel =
       EventChannel('com.flowfit.watch/heartrate');
 
@@ -40,8 +44,84 @@ class WatchBridgeService {
   final StreamController<PermissionStatus> _permissionStateController =
       StreamController<PermissionStatus>.broadcast();
   Timer? _permissionCheckTimer;
+  
+  // Connection state stream
+  final StreamController<conn.ConnectionState> _connectionStateController =
+      StreamController<conn.ConnectionState>.broadcast();
+  Timer? _connectionCheckTimer;
 
-  /// Request BODY_SENSORS permission from the user
+  /// Request BODY_SENSORS permission via native method channel
+  /// Uses health.READ_HEART_RATE for Android 15+, BODY_SENSORS for older versions
+  /// Returns true if permission is granted, false otherwise
+  Future<bool> requestPermission() async {
+    _logger.i('Requesting body sensor permission via native');
+    
+    try {
+      final result = await _methodChannel
+          .invokeMethod<bool>('requestPermission')
+          .timeout(_operationTimeout);
+      
+      final granted = result ?? false;
+      _logger.d('Native permission request result: $granted');
+      
+      // Emit permission state change
+      await _updatePermissionState();
+      return granted;
+    } on TimeoutException catch (e) {
+      _logger.e('Permission request timed out', error: e);
+      throw SensorError(
+        code: SensorErrorCode.timeout,
+        message: 'Permission request timed out',
+        details: e.toString(),
+      );
+    } on PlatformException catch (e) {
+      _logger.e('Platform exception during permission request', error: e);
+      throw _mapPlatformException(e, 'Failed to request permission');
+    } catch (e, stackTrace) {
+      _logger.e('Failed to request body sensor permission', error: e, stackTrace: stackTrace);
+      throw SensorError(
+        code: SensorErrorCode.permissionDenied,
+        message: 'Failed to request body sensor permission',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Check the current BODY_SENSORS permission status via native method channel
+  /// Uses health.READ_HEART_RATE for Android 15+, BODY_SENSORS for older versions
+  /// Returns 'granted', 'denied', or 'notDetermined'
+  Future<String> checkPermission() async {
+    _logger.d('Checking body sensor permission status via native');
+    
+    try {
+      final status = await _methodChannel
+          .invokeMethod<String>('checkPermission')
+          .timeout(_operationTimeout);
+      
+      final result = status ?? 'notDetermined';
+      _logger.d('Native permission status: $result');
+      return result;
+    } on TimeoutException catch (e) {
+      _logger.e('Permission check timed out', error: e);
+      throw SensorError(
+        code: SensorErrorCode.timeout,
+        message: 'Permission check timed out',
+        details: e.toString(),
+      );
+    } on PlatformException catch (e) {
+      _logger.e('Platform exception during permission check', error: e);
+      throw _mapPlatformException(e, 'Failed to check permission');
+    } catch (e, stackTrace) {
+      _logger.e('Failed to check body sensor permission', error: e, stackTrace: stackTrace);
+      throw SensorError(
+        code: SensorErrorCode.unknown,
+        message: 'Failed to check body sensor permission',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Request BODY_SENSORS permission from the user (legacy method using permission_handler)
   /// Returns true if permission is granted, false otherwise
   Future<bool> requestBodySensorPermission() async {
     _logger.i('Requesting body sensor permission');
@@ -72,7 +152,7 @@ class WatchBridgeService {
     }
   }
 
-  /// Check the current BODY_SENSORS permission status
+  /// Check the current BODY_SENSORS permission status (legacy method using permission_handler)
   /// Returns the current permission state without requesting
   Future<PermissionStatus> checkBodySensorPermission() async {
     _logger.d('Checking body sensor permission status');
@@ -317,6 +397,10 @@ class WatchBridgeService {
         final jsonMap = Map<String, dynamic>.from(event as Map);
         final heartRateData = HeartRateData.fromJson(jsonMap);
         _logger.d('Heart rate stream data: ${heartRateData.bpm} bpm');
+        
+        // Automatically sync to phone when heart rate data is received
+        _autoSyncToPhone(heartRateData);
+        
         return heartRateData;
       } catch (e, stackTrace) {
         _logger.e('Failed to parse heart rate data', error: e, stackTrace: stackTrace);
@@ -502,12 +586,220 @@ class WatchBridgeService {
     );
   }
 
+  /// Send heart rate data to the paired phone
+  /// Returns true if data was sent successfully, false otherwise
+  /// Implements retry logic for failed transmissions
+  Future<bool> sendHeartRateToPhone(HeartRateData data) async {
+    _logger.i('Sending heart rate data to phone: ${data.bpm} bpm');
+    
+    return await _retryWithExponentialBackoff<bool>(
+      operation: () async {
+        try {
+          // Convert HeartRateData to JSON string
+          final jsonData = data.toJson();
+          final jsonString = jsonEncode(jsonData);
+          
+          final result = await _syncChannel
+              .invokeMethod<bool>('sendHeartRateToPhone', {
+                'data': jsonString,
+              })
+              .timeout(_operationTimeout);
+          
+          final success = result ?? false;
+          _logger.i('Heart rate data sent to phone: $success');
+          return success;
+        } on TimeoutException catch (e) {
+          _logger.w('Send to phone timed out', error: e);
+          throw SensorError(
+            code: SensorErrorCode.timeout,
+            message: 'Send to phone timed out',
+            details: e.toString(),
+          );
+        } on PlatformException catch (e) {
+          _logger.e('Platform exception sending to phone', error: e);
+          throw _mapPlatformException(e, 'Failed to send heart rate data to phone');
+        }
+      },
+      operationName: 'sendHeartRateToPhone',
+    );
+  }
+
+  /// Check if the phone is connected and available
+  /// Returns true if phone is connected, false otherwise
+  Future<bool> checkPhoneConnection() async {
+    _logger.d('Checking phone connection');
+    
+    try {
+      final result = await _syncChannel
+          .invokeMethod<bool>('checkPhoneConnection')
+          .timeout(_operationTimeout);
+      
+      final connected = result ?? false;
+      _logger.d('Phone connected: $connected');
+      return connected;
+    } on TimeoutException catch (e) {
+      _logger.e('Check phone connection timed out', error: e);
+      return false;
+    } on PlatformException catch (e) {
+      _logger.e('Platform exception checking phone connection', error: e);
+      return false;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to check phone connection', error: e, stackTrace: stackTrace);
+      return false;
+    }
+  }
+
+  /// Get the count of connected nodes (for debugging)
+  /// Returns the number of connected nodes
+  Future<int> getConnectedNodesCount() async {
+    _logger.d('Getting connected nodes count');
+    
+    try {
+      final result = await _syncChannel
+          .invokeMethod<int>('getConnectedNodesCount')
+          .timeout(_operationTimeout);
+      
+      final count = result ?? 0;
+      _logger.d('Connected nodes count: $count');
+      return count;
+    } on TimeoutException catch (e) {
+      _logger.e('Get connected nodes count timed out', error: e);
+      return 0;
+    } on PlatformException catch (e) {
+      _logger.e('Platform exception getting connected nodes count', error: e);
+      return 0;
+    } catch (e, stackTrace) {
+      _logger.e('Failed to get connected nodes count', error: e, stackTrace: stackTrace);
+      return 0;
+    }
+  }
+
+  /// Automatically sync heart rate data to phone
+  /// Called internally when new heart rate data is received
+  /// Implements retry logic for failed transmissions
+  Future<void> _autoSyncToPhone(HeartRateData data) async {
+    try {
+      // Check if phone is connected before attempting to send
+      final isConnected = await checkPhoneConnection();
+      
+      if (!isConnected) {
+        _logger.w('Phone not connected, skipping auto-sync');
+        return;
+      }
+      
+      // Send data to phone with retry logic
+      final success = await sendHeartRateToPhone(data);
+      
+      if (success) {
+        _logger.i('Auto-sync to phone successful');
+      } else {
+        _logger.w('Auto-sync to phone failed');
+      }
+    } catch (e, stackTrace) {
+      // Don't throw errors from auto-sync to avoid disrupting the main data stream
+      _logger.e('Error during auto-sync to phone', error: e, stackTrace: stackTrace);
+    }
+  }
+
+  /// Send batch of collected heart rate data to phone
+  /// Retrieves all stored TrackedData from native side and transmits as JSON array
+  /// Returns true if batch was sent successfully, false otherwise
+  Future<bool> sendBatchToPhone() async {
+    _logger.i('Sending batch data to phone');
+    
+    try {
+      final result = await _syncChannel
+          .invokeMethod<bool>('sendBatchToPhone')
+          .timeout(_operationTimeout);
+      
+      final success = result ?? false;
+      if (success) {
+        _logger.i('Batch data sent successfully');
+      } else {
+        _logger.w('Failed to send batch data');
+      }
+      return success;
+    } on TimeoutException catch (e) {
+      _logger.e('Send batch to phone timed out', error: e);
+      throw SensorError(
+        code: SensorErrorCode.timeout,
+        message: 'Send batch to phone timed out',
+        details: e.toString(),
+      );
+    } on PlatformException catch (e) {
+      _logger.e('Platform exception sending batch to phone', error: e);
+      throw _mapPlatformException(e, 'Failed to send batch to phone');
+    } catch (e, stackTrace) {
+      _logger.e('Failed to send batch to phone', error: e, stackTrace: stackTrace);
+      throw SensorError(
+        code: SensorErrorCode.unknown,
+        message: 'Failed to send batch to phone',
+        details: e.toString(),
+      );
+    }
+  }
+
+  /// Get a stream of connection state changes
+  /// Returns a Stream that emits ConnectionState when connection status changes
+  Stream<conn.ConnectionState> get connectionStateStream =>
+      _connectionStateController.stream;
+
+  /// Start monitoring connection state changes
+  /// Checks connection status periodically and emits changes
+  void startConnectionMonitoring({Duration interval = const Duration(seconds: 5)}) {
+    // Stop any existing timer
+    _connectionCheckTimer?.cancel();
+    
+    // Emit initial state
+    _updateConnectionState();
+    
+    // Set up periodic checks
+    _connectionCheckTimer = Timer.periodic(interval, (_) {
+      _updateConnectionState();
+    });
+  }
+
+  /// Stop monitoring connection state changes
+  void stopConnectionMonitoring() {
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = null;
+  }
+
+  /// Update and emit current connection state
+  Future<void> _updateConnectionState() async {
+    try {
+      final isConnected = await checkPhoneConnection();
+      final nodeCount = await getConnectedNodesCount();
+      
+      final state = conn.ConnectionState(
+        isConnected: isConnected,
+        nodeCount: nodeCount,
+        lastSyncTime: isConnected ? DateTime.now() : null,
+      );
+      
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(state);
+      }
+    } catch (e, stackTrace) {
+      // Silently handle errors in background monitoring
+      _logger.w('Error checking connection state', error: e, stackTrace: stackTrace);
+      
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(
+          conn.ConnectionState.disconnected(errorMessage: e.toString()),
+        );
+      }
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     _heartRateSubscription?.cancel();
     _heartRateSubscription = null;
     _heartRateStream = null;
     stopPermissionMonitoring();
+    stopConnectionMonitoring();
     _permissionStateController.close();
+    _connectionStateController.close();
   }
 }

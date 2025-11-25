@@ -321,3 +321,317 @@
   - Add README with setup instructions
   - Document permission request flow
   - _Requirements: All_
+
+- [x] 17. Fix 5 critical production bugs blocking app functionality
+
+
+
+  - Fix HealthTrackingManager connection lifecycle - implement proper ConnectionListener callback pattern
+  - Fix race condition where capability check happens before service connection completes
+  - Fix UI overflow in wear_heart_rate_screen.dart by adding SingleChildScrollView with proper constraints
+  - Add wear.xml capability file for phone app to enable node discovery
+  - Disable Impeller rendering to fix gralloc4 format errors
+  - _Requirements: 5.2, 5.3, 5.4_
+
+- [x] 18. Fix watch-to-phone message path mismatch
+
+
+
+
+
+
+
+
+
+  - Update WatchToPhoneSyncManager to use message path "/heart_rate" instead of "/heart_rate_data"
+  - Update PhoneDataListenerService to use message path "/heart_rate" for consistency
+  - Update AndroidManifest.xml intent-filter pathPrefix to "/heart_rate"
+  - Verify MESSAGE_PATH and BATCH_PATH constants match across watch and phone
+  - Test end-to-end data flow from watch sensor to phone UI
+  - _Requirements: 8.1, 8.2, 9.1, 9.3_
+
+- [ ]* 18.1 Write property test for watch data transmission
+  - **Property 18: Watch data transmission to phone**
+  - **Validates: Requirements 8.1**
+
+- [ ]* 18.2 Write property test for phone receives data timely
+  - **Property 19: Phone receives watch data timely**
+  - **Validates: Requirements 8.2**
+
+- [ ]* 18.3 Write property test for node discovery via capability
+  - **Property 20: Node discovery via capability**
+  - **Validates: Requirements 8.3**
+
+- [ ]* 18.4 Write property test for graceful no phone handling
+  - **Property 21: Graceful handling of no phone connection**
+  - **Validates: Requirements 8.4**
+
+- [ ]* 18.5 Write property test for phone app launch
+  - **Property 22: Phone app launch on data reception**
+  - **Validates: Requirements 8.5**
+
+- [x] 19. Implement PhoneDataService in Flutter (phone side)
+
+
+
+
+
+
+
+
+
+  - Create lib/services/phone_data_listener.dart for phone app
+  - Set up EventChannel listener for "com.flowfit.phone/heartrate"
+  - Implement JSON decoding with validation of required fields
+  - Create Stream<HeartRateData> for phone UI to consume
+  - Add error handling for malformed JSON
+  - _Requirements: 8.2, 9.4_
+
+- [ ]* 19.1 Write property test for consistent message path
+  - **Property 23: Consistent message path usage**
+  - **Validates: Requirements 9.1**
+
+- [ ]* 19.2 Write property test for JSON encoding consistency
+  - **Property 24: JSON encoding consistency**
+  - **Validates: Requirements 9.2**
+
+- [ ]* 19.3 Write property test for message path filtering
+  - **Property 25: Message path filtering on phone**
+  - **Validates: Requirements 9.3**
+
+- [ ]* 19.4 Write property test for JSON decoding validation
+  - **Property 26: JSON decoding validation**
+  - **Validates: Requirements 9.4**
+
+- [ ]* 19.5 Write property test for transmission error logging
+  - **Property 27: Transmission error logging**
+  - **Validates: Requirements 9.5**
+
+- [x] 20. Update WatchBridgeService to support watch-to-phone sync
+
+
+
+
+
+
+
+
+
+  - Add sendHeartRateToPhone() method that calls native sync manager
+  - Add checkPhoneConnection() method
+  - Add getConnectedNodesCount() method for debugging
+  - Implement automatic sync when heart rate data is received
+  - Add retry logic for failed transmissions
+  - _Requirements: 8.1, 8.3, 8.4_
+
+- [x] 21. Create phone UI for displaying watch data
+
+
+
+
+
+
+
+  - Create screen to display heart rate data received from watch
+  - Show connection status (watch connected/disconnected)
+  - Display real-time BPM and IBI values
+  - Add visual indicator for data freshness (timestamp)
+  - Handle case when no data has been received yet
+  - _Requirements: 8.2_
+
+- [x] 22. Final checkpoint - Test watch-to-phone data flow
+
+
+
+
+
+  - Ensure all tests pass, ask the user if questions arise.
+  - Verify data flows from watch sensor → phone UI
+  - Test with phone app closed (background reception)
+  - Test with phone app open (real-time updates)
+  - Verify node discovery works correctly
+  - Check error handling when phone is disconnected
+
+- [x] 23. Add Android 15+ health permission support
+
+
+
+
+
+
+  - Update AndroidManifest.xml to declare android.permission.health.READ_HEART_RATE
+  - Update MainActivity.kt requestPermission() to check Android version and request appropriate permission
+  - Update checkPermission() to check the correct permission based on Android version
+  - Test permission flow on Android 14 and Android 15+ devices
+  - _Requirements: 10.1, 10.2, 10.3, 10.4_
+
+- [ ]* 23.1 Write property test for version-aware permission request
+  - **Property 28: Android version-aware permission request**
+  - **Validates: Requirements 10.1, 10.2**
+
+- [x] 24. Create TrackedData model (Kotlin)
+
+
+
+
+
+
+  - Create android/app/src/main/kotlin/com/example/flowfit/TrackedData.kt
+  - Add @Serializable annotation for JSON encoding
+  - Define hr: Int and ibi: ArrayList<Int> fields
+  - Add kotlinx.serialization dependency to build.gradle.kts if needed
+  - _Requirements: 13.1_
+
+- [x] 25. Create TrackedData model (Flutter)
+
+
+
+
+
+
+  - Create lib/models/tracked_data.dart
+  - Implement fromJson() factory constructor
+  - Implement toJson() method
+  - Add validation for required fields
+  - _Requirements: 13.1, 13.2, 13.3_
+
+- [ ]* 25.1 Write property test for TrackedData serialization round-trip
+  - **Property 33: TrackedData serialization round-trip**
+  - **Validates: Requirements 13.1, 13.2, 13.3**
+
+- [x] 26. Add HR data validation to HealthTrackingManager
+
+
+
+
+
+
+
+
+  - Implement isHRValid(status: Int) method that checks if status == 1
+  - Update heart rate data processing to validate HR status before storing
+  - Implement getValidIbiList() to filter IBI values by status
+  - Only add TrackedData to collection when HR status is valid
+  - _Requirements: 11.1, 11.2, 11.3_
+
+- [ ]* 26.1 Write property test for HR status validation
+  - **Property 29: Heart rate status validation**
+  - **Validates: Requirements 11.1, 11.2**
+
+- [ ]* 26.2 Write property test for IBI status filtering
+  - **Property 30: IBI status filtering**
+  - **Validates: Requirements 11.3**
+
+- [x] 27. Implement batch data collection in HealthTrackingManager
+
+
+
+
+
+
+
+  - Add validHrData: ArrayList<TrackedData> property
+  - Add maxDataPoints = 40 constant
+  - Implement trimDataList() to remove oldest data when size exceeds 40
+  - Call trimDataList() after adding each new measurement
+  - Implement getValidHrData() to return the collection
+  - _Requirements: 12.1, 12.2, 12.3_
+
+- [ ]* 27.1 Write property test for data collection size limit
+  - **Property 31: Data collection size limit**
+  - **Validates: Requirements 12.2**
+
+- [x] 28. Add batch send method channel handler
+
+
+
+
+
+
+  - Add "sendBatchToPhone" case to MainActivity handleMethodCall()
+  - Call healthTrackingManager.getValidHrData() to retrieve batch
+  - Serialize ArrayList<TrackedData> to JSON using kotlinx.serialization
+  - Call watchToPhoneSyncManager.sendBatchToPhone() with JSON
+  - Return success/failure result to Flutter
+  - _Requirements: 12.3, 12.4_
+
+- [ ]* 28.1 Write property test for batch data encoding
+  - **Property 32: Batch data encoding**
+  - **Validates: Requirements 12.4**
+
+- [x] 29. Add batch send method to WatchBridgeService
+
+
+
+
+
+
+  - Add sendBatchToPhone() method to WatchBridgeService
+  - Call method channel with "sendBatchToPhone"
+  - Add error handling for batch send failures
+  - Return Future<bool> indicating success/failure
+  - _Requirements: 12.3_
+
+- [x] 30. Update PhoneDataListenerService to handle batch data
+
+
+
+
+
+
+  - Update JSON parsing to detect if data is array or single object
+  - If array, iterate and process each TrackedData item
+  - If single object, process as before
+  - Send each item to EventChannel sink
+  - _Requirements: 12.5_
+
+- [x] 31. Enhance phone UI for displaying watch data
+
+
+
+
+
+
+
+
+  - Update phone heart rate screen to display TrackedData format
+  - Show BPM value prominently with large font
+  - Display IBI values in a readable list or chart
+  - Add connection status indicator (connected/disconnected)
+  - Show "No data received" message when data list is empty
+  - Add timestamp for data freshness
+  - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
+
+- [ ]* 31.1 Write property test for phone UI displays data
+  - **Property 34: Phone UI displays received data**
+  - **Validates: Requirements 14.2, 14.3**
+
+- [x] 32. Add connection state management
+
+
+
+
+
+
+  - Create lib/models/connection_state.dart model
+  - Add periodic connection checks in WatchBridgeService
+  - Emit connection state changes through Stream
+  - Update watch UI to show connection status
+  - Add manual sync button to trigger batch send
+  - _Requirements: 14.5_
+
+- [x] 33. Final checkpoint - Test enhanced features
+
+
+
+
+
+
+
+  - Test Android 15+ permission flow
+  - Test HR data validation filters invalid data
+  - Test batch collection maintains 40-item limit
+  - Test batch send transmits all data correctly
+  - Test phone UI displays TrackedData properly
+  - Test connection state updates correctly
+  - Ensure all tests pass, ask the user if questions arise.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wear_plus/wear_plus.dart';
 import 'dart:async';
 import '../../services/watch_bridge.dart';
+import '../../services/watch_to_phone_sync.dart';
 import '../../models/heart_rate_data.dart';
 import '../../models/sensor_status.dart';
 
@@ -29,11 +30,13 @@ class WearHeartRateScreen extends StatefulWidget {
 class _WearHeartRateScreenState extends State<WearHeartRateScreen>
     with SingleTickerProviderStateMixin {
   final WatchBridgeService _watchBridge = WatchBridgeService();
+  final WatchToPhoneSync _phoneSync = WatchToPhoneSync();
   
   HeartRateData? _currentHeartRate;
   bool _isMonitoring = false;
   bool _isConnected = false;
   bool _isSending = false;
+  bool _isPhoneConnected = false;
   String _statusMessage = 'Ready';
   
   StreamSubscription? _heartRateSubscription;
@@ -61,34 +64,68 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
   }
 
   Future<void> _checkConnection() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _statusMessage = 'Checking permissions...';
+    });
+
     try {
-      final connected = await _watchBridge.isWatchConnected();
+      // CRITICAL: Check permissions first
+      final permissionStatus = await _watchBridge.checkPermission();
+      
+      if (permissionStatus != 'granted') {
+        if (!mounted) return;
+        setState(() {
+          _statusMessage = 'Requesting permission...';
+        });
+        
+        // Request permission
+        final granted = await _watchBridge.requestPermission();
+        
+        if (!granted) {
+          if (!mounted) return;
+          setState(() {
+            _isConnected = false;
+            _statusMessage = 'Permission denied';
+          });
+          return;
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
-        _isConnected = connected;
-        _statusMessage = connected ? 'Ready' : 'Connecting...';
+        _statusMessage = 'Connecting...';
       });
+
+      // Connect to Samsung Health SDK
+      final connected = await _watchBridge.connectToWatch();
       
       if (!connected) {
-        await _connectToSamsung();
+        if (!mounted) return;
+        setState(() {
+          _isConnected = false;
+          _statusMessage = 'SDK unavailable';
+        });
+        return;
       }
-    } catch (e) {
-      setState(() {
-        _statusMessage = 'Connection error';
-      });
-    }
-  }
 
-  Future<void> _connectToSamsung() async {
-    try {
-      final connected = await _watchBridge.connectToWatch();
+      // Check phone connection
+      final phoneConnected = await _phoneSync.checkPhoneConnection();
+      
+      if (!mounted) return;
       setState(() {
-        _isConnected = connected;
-        _statusMessage = connected ? 'Connected' : 'Connection failed';
+        _isConnected = true;
+        _isPhoneConnected = phoneConnected;
+        _statusMessage = 'Ready';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _statusMessage = 'Error: $e';
+        _isConnected = false;
+        _statusMessage = 'Error';
       });
+      debugPrint('Connection error: $e');
     }
   }
 
@@ -102,36 +139,62 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
 
   Future<void> _startMonitoring() async {
     if (!_isConnected) {
-      await _connectToSamsung();
-      if (!_isConnected) return;
+      setState(() {
+        _statusMessage = 'Connecting...';
+      });
+      await _checkConnection();
+      if (!_isConnected) {
+        setState(() {
+          _statusMessage = 'Connection failed';
+        });
+        return;
+      }
     }
 
     try {
-      final started = await _watchBridge.startHeartRateTracking();
-      if (started) {
-        setState(() {
-          _isMonitoring = true;
-          _statusMessage = 'Monitoring...';
-        });
+      setState(() {
+        _statusMessage = 'Starting...';
+      });
 
-        _heartRateSubscription = _watchBridge.heartRateStream.listen(
-          (heartRateData) {
+      final started = await _watchBridge.startHeartRateTracking();
+      
+      if (!started) {
+        setState(() {
+          _statusMessage = 'Start failed';
+        });
+        return;
+      }
+
+      setState(() {
+        _isMonitoring = true;
+        _statusMessage = 'Monitoring';
+      });
+
+      _heartRateSubscription = _watchBridge.heartRateStream.listen(
+        (heartRateData) {
+          if (mounted) {
             setState(() {
               _currentHeartRate = heartRateData;
               _statusMessage = 'Active';
             });
-          },
-          onError: (error) {
+          }
+        },
+        onError: (error) {
+          if (mounted) {
             setState(() {
-              _statusMessage = 'Error: $error';
+              _isMonitoring = false;
+              _statusMessage = 'Error';
             });
-          },
-        );
-      }
+          }
+          debugPrint('Heart rate error: $error');
+        },
+      );
     } catch (e) {
       setState(() {
-        _statusMessage = 'Failed to start';
+        _isMonitoring = false;
+        _statusMessage = 'Failed';
       });
+      debugPrint('Start monitoring error: $e');
     }
   }
 
@@ -159,22 +222,33 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
       _statusMessage = 'Sending...';
     });
 
-    // TODO: Implement WatchToPhoneSync service
-    await Future.delayed(const Duration(seconds: 1)); // Simulate send
+    try {
+      final success = await _phoneSync.sendHeartRateToPhone(_currentHeartRate!);
 
-    setState(() {
-      _isSending = false;
-      _statusMessage = 'Sent ✓';
-    });
-
-    // Reset status after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() {
-          _statusMessage = _isMonitoring ? 'Active' : 'Ready';
+          _isSending = false;
+          _statusMessage = success ? 'Sent!' : 'Failed';
+        });
+
+        // Reset status
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _statusMessage = _isMonitoring ? 'Active' : 'Ready';
+            });
+          }
         });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+          _statusMessage = 'Error';
+        });
+      }
+      debugPrint('Send error: $e');
+    }
   }
 
   @override
@@ -200,28 +274,27 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
   }
 
   Widget _buildActiveMode() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // BPM Display
-        _buildBpmDisplay(),
-        
-        const SizedBox(height: 16),
-        
-        // IBI Info (optional)
-        if (_currentHeartRate?.ibiValues.isNotEmpty ?? false)
-          _buildIbiInfo(),
-        
-        const SizedBox(height: 24),
-        
-        // Control Buttons
-        _buildControlButtons(),
-        
-        const SizedBox(height: 16),
-        
-        // Status
-        _buildStatus(),
-      ],
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 8),
+            _buildBpmDisplay(),
+            const SizedBox(height: 16),
+            _buildStartButton(),
+            if (_currentHeartRate != null) ...[
+              const SizedBox(height: 8),
+              _buildSendButton(),
+            ],
+            const SizedBox(height: 12),
+            _buildStatusIndicator(),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -234,10 +307,11 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
         return Transform.scale(
           scale: _isMonitoring ? _pulseAnimation.value : 1.0,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Icons.favorite,
-                color: _isMonitoring ? const Color(0xFFF44336) : Colors.grey,
+                color: _isMonitoring ? Colors.red : Colors.grey.shade700,
                 size: 32,
               ),
               const SizedBox(height: 8),
@@ -252,8 +326,9 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
               const Text(
                 'BPM',
                 style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
+                  fontSize: 14,
+                  color: Colors.white60,
+                  letterSpacing: 2,
                 ),
               ),
             ],
@@ -263,103 +338,98 @@ class _WearHeartRateScreenState extends State<WearHeartRateScreen>
     );
   }
 
-  Widget _buildIbiInfo() {
-    final ibiCount = _currentHeartRate?.ibiValues.length ?? 0;
-    
-    return Text(
-      'IBI: $ibiCount values',
-      style: const TextStyle(
-        fontSize: 12,
-        color: Colors.white54,
-      ),
-    );
-  }
-
-  Widget _buildControlButtons() {
-    return Column(
-      children: [
-        // Start/Stop Button
-        SizedBox(
-          width: 120,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: _toggleMonitoring,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _isMonitoring 
-                  ? Colors.red.shade700 
-                  : const Color(0xFF1976D2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-            ),
-            child: Text(
-              _isMonitoring ? 'Stop' : 'Start',
-              style: const TextStyle(fontSize: 16),
-            ),
+  Widget _buildStartButton() {
+    return SizedBox(
+      width: 100,
+      height: 40,
+      child: ElevatedButton.icon(
+        onPressed: _toggleMonitoring,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isMonitoring ? Colors.red : Colors.green,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
-        
-        const SizedBox(height: 12),
-        
-        // Send to Phone Button
-        if (_currentHeartRate != null)
-          SizedBox(
-            width: 140,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: _isSending ? null : _sendToPhone,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00B5FF),
-                disabledBackgroundColor: Colors.grey.shade800,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              icon: _isSending
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send, size: 18),
-              label: Text(
-                _isSending ? 'Sending' : 'Send',
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
+        icon: Icon(
+          _isMonitoring ? Icons.pause : Icons.play_arrow,
+          size: 18,
+        ),
+        label: Text(
+          _isMonitoring ? 'Stop' : 'Start',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
           ),
-      ],
+        ),
+      ),
     );
   }
 
-  Widget _buildStatus() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _isConnected ? Icons.check_circle : Icons.error_outline,
-            size: 16,
-            color: _isConnected ? Colors.green : Colors.orange,
+  Widget _buildSendButton() {
+    return SizedBox(
+      width: 100,
+      height: 36,
+      child: ElevatedButton.icon(
+        onPressed: _isSending ? null : _sendToPhone,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          disabledBackgroundColor: Colors.grey.shade800,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
           ),
-          const SizedBox(width: 8),
-          Text(
-            _statusMessage,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.white70,
-            ),
-          ),
-        ],
+        ),
+        icon: _isSending
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.phone_android, size: 16),
+        label: Text(
+          _isSending ? 'Sending' : 'Send',
+          style: const TextStyle(fontSize: 12),
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatusIndicator() {
+    Color statusColor = Colors.grey;
+    if (_isConnected && _isMonitoring) {
+      statusColor = Colors.green;
+    } else if (_isConnected) {
+      statusColor = Colors.blue;
+    } else {
+      statusColor = Colors.orange;
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: statusColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _statusMessage,
+          style: TextStyle(
+            fontSize: 10,
+            color: statusColor,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 

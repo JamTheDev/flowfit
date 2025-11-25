@@ -1,9 +1,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flowfit/services/watch_bridge.dart';
+import 'package:flowfit/models/heart_rate_data.dart';
 import 'package:flowfit/models/permission_status.dart';
 import 'package:flowfit/models/sensor_error.dart';
 import 'package:flowfit/models/sensor_error_code.dart';
+import 'package:flowfit/models/sensor_status.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -368,6 +370,132 @@ void main() {
           () => service.openAppSettings(),
           throwsA(isA<SensorError>()),
         );
+      });
+    });
+
+    group('watch-to-phone sync', () {
+      const syncChannel = MethodChannel('com.flowfit.watch/sync');
+
+      tearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, null);
+      });
+
+      test('sendHeartRateToPhone returns true on success', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'sendHeartRateToPhone') {
+            expect(methodCall.arguments['data'], isNotNull);
+            return true;
+          }
+          return null;
+        });
+
+        final heartRateData = HeartRateData(
+          bpm: 75,
+          timestamp: DateTime.now(),
+          status: SensorStatus.active,
+        );
+
+        final result = await service.sendHeartRateToPhone(heartRateData);
+        expect(result, true);
+      });
+
+      test('sendHeartRateToPhone returns false on failure', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'sendHeartRateToPhone') {
+            return false;
+          }
+          return null;
+        });
+
+        final heartRateData = HeartRateData(
+          bpm: 75,
+          timestamp: DateTime.now(),
+          status: SensorStatus.active,
+        );
+
+        final result = await service.sendHeartRateToPhone(heartRateData);
+        expect(result, false);
+      });
+
+      test('checkPhoneConnection returns true when phone is connected', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'checkPhoneConnection') {
+            return true;
+          }
+          return null;
+        });
+
+        final result = await service.checkPhoneConnection();
+        expect(result, true);
+      });
+
+      test('checkPhoneConnection returns false when phone is not connected', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'checkPhoneConnection') {
+            return false;
+          }
+          return null;
+        });
+
+        final result = await service.checkPhoneConnection();
+        expect(result, false);
+      });
+
+      test('checkPhoneConnection returns false on error', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'checkPhoneConnection') {
+            throw PlatformException(code: 'ERROR', message: 'Connection check failed');
+          }
+          return null;
+        });
+
+        final result = await service.checkPhoneConnection();
+        expect(result, false);
+      });
+
+      test('getConnectedNodesCount returns node count', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'getConnectedNodesCount') {
+            return 2;
+          }
+          return null;
+        });
+
+        final result = await service.getConnectedNodesCount();
+        expect(result, 2);
+      });
+
+      test('getConnectedNodesCount returns 0 when no nodes connected', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'getConnectedNodesCount') {
+            return 0;
+          }
+          return null;
+        });
+
+        final result = await service.getConnectedNodesCount();
+        expect(result, 0);
+      });
+
+      test('getConnectedNodesCount returns 0 on error', () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(syncChannel, (MethodCall methodCall) async {
+          if (methodCall.method == 'getConnectedNodesCount') {
+            throw PlatformException(code: 'ERROR', message: 'Failed to get count');
+          }
+          return null;
+        });
+
+        final result = await service.getConnectedNodesCount();
+        expect(result, 0);
       });
     });
 
