@@ -30,6 +30,7 @@ class _PhoneHomePageState extends State<PhoneHomePage> {
     // Listen for heart rate data from watch
     _heartRateSubscription = _dataListener.heartRateStream.listen(
       (heartRateData) {
+        // Data comes as HeartRateData from the stream
         setState(() {
           _latestHeartRate = heartRateData;
           _heartRateHistory.insert(0, heartRateData);
@@ -40,10 +41,13 @@ class _PhoneHomePageState extends State<PhoneHomePage> {
           }
           
           _isConnected = true;
-          _statusMessage = 'Receiving data from watch';
+          _statusMessage = 'Received from watch';
         });
+        
+        print('✅ Heart rate received: ${heartRateData.bpm} BPM');
       },
       onError: (error) {
+        print('❌ Stream error: $error');
         setState(() {
           _statusMessage = 'Error: $error';
           _isConnected = false;

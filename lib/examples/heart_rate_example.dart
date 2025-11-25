@@ -57,6 +57,22 @@ class _HeartRateExampleState extends State<HeartRateExample> {
   Future<void> _connect() async {
     try {
       setState(() {
+        _statusMessage = 'Checking permissions...';
+      });
+      
+      // Check and request permission first
+      final permissionStatus = await _watchBridge.checkPermission();
+      if (permissionStatus != 'granted') {
+        final granted = await _watchBridge.requestPermission();
+        if (!granted) {
+          setState(() {
+            _statusMessage = 'Permission denied';
+          });
+          return;
+        }
+      }
+      
+      setState(() {
         _statusMessage = 'Connecting...';
       });
       

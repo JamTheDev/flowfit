@@ -11,40 +11,84 @@ The solution enables real-time biometric data collection from Samsung Galaxy Wat
 ### High-Level Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         Flutter Layer (Dart)            │
-│  ┌───────────────────────────────────┐  │
-│  │   UI Components & Screens         │  │
-│  └───────────────┬───────────────────┘  │
-│                  │                       │
-│  ┌───────────────▼───────────────────┐  │
-│  │   WatchBridgeService              │  │
-│  │   - Permission Management         │  │
-│  │   - Sensor Data Streams           │  │
-│  └───────────────┬───────────────────┘  │
-└──────────────────┼───────────────────────┘
-                   │ Method Channel
-┌──────────────────▼───────────────────────┐
-│      Native Android Layer (Kotlin)       │
-│  ┌───────────────────────────────────┐   │
-│  │   MainActivity                    │   │
-│  │   - Method Channel Handler        │   │
-│  └───────────────┬───────────────────┘   │
-│                  │                        │
-│  ┌───────────────▼───────────────────┐   │
-│  │   SamsungHealthManager           │   │
-│  │   - Connection Management         │   │
-│  │   - Sensor Listeners              │   │
-│  │   - Lifecycle Handling            │   │
-│  └───────────────┬───────────────────┘   │
-└──────────────────┼────────────────────────┘
-                   │
-┌──────────────────▼────────────────────────┐
-│   Samsung Health Sensor API               │
-│   - Heart Rate Sensor                     │
-│   - Accelerometer                         │
-│   - Other Biometric Sensors               │
-└───────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    GALAXY WATCH (Wear OS)                           │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                  Flutter Layer (Dart)                         │  │
+│  │  ┌─────────────────────────────────────────────────────────┐  │  │
+│  │  │   UI Components & Screens                               │  │  │
+│  │  └───────────────┬─────────────────────────────────────────┘  │  │
+│  │                  │                                             │  │
+│  │  ┌───────────────▼─────────────────────────────────────────┐  │  │
+│  │  │   WatchBridgeService                                    │  │  │
+│  │  │   - Permission Management                               │  │  │
+│  │  │   - Sensor Data Streams                                 │  │  │
+│  │  │   - Watch-to-Phone Sync                                 │  │  │
+│  │  └───────────────┬─────────────────────────────────────────┘  │  │
+│  └──────────────────┼─────────────────────────────────────────────┘  │
+│                     │ Method Channel                                 │
+│  ┌──────────────────▼─────────────────────────────────────────────┐  │
+│  │            Native Android Layer (Kotlin)                       │  │
+│  │  ┌─────────────────────────────────────────────────────────┐   │  │
+│  │  │   MainActivity (Watch)                                  │   │  │
+│  │  │   - Method Channel Handler                              │   │  │
+│  │  └───────────────┬─────────────────────────────────────────┘   │  │
+│  │                  │                                              │  │
+│  │  ┌───────────────▼─────────────────────────────────────────┐   │  │
+│  │  │   HealthTrackingManager                                 │   │  │
+│  │  │   - Connection Management                               │   │  │
+│  │  │   - Sensor Listeners                                    │   │  │
+│  │  │   - Lifecycle Handling                                  │   │  │
+│  │  └───────────────┬─────────────────────────────────────────┘   │  │
+│  │                  │                                              │  │
+│  │  ┌───────────────▼─────────────────────────────────────────┐   │  │
+│  │  │   WatchToPhoneSyncManager                               │   │  │
+│  │  │   - MessageClient API                                   │   │  │
+│  │  │   - CapabilityClient (Node Discovery)                   │   │  │
+│  │  │   - JSON Encoding                                       │   │  │
+│  │  └───────────────┬─────────────────────────────────────────┘   │  │
+│  └──────────────────┼──────────────────────────────────────────────┘  │
+└────────────────────┼──────────────────────────────────────────────────┘
+                     │
+                     │ Wearable Data Layer API
+                     │ (MessageClient)
+                     │ Path: "/heart_rate"
+                     │
+┌────────────────────▼──────────────────────────────────────────────────┐
+│                    ANDROID PHONE (Companion)                          │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │            Native Android Layer (Kotlin)                         │ │
+│  │  ┌────────────────────────────────────────────────────────────┐  │ │
+│  │  │   PhoneDataListenerService                                 │  │ │
+│  │  │   - Extends WearableListenerService                        │  │ │
+│  │  │   - Declared in AndroidManifest.xml                        │  │ │
+│  │  │   - Listens for MESSAGE_RECEIVED intent                    │  │ │
+│  │  │   - Filters path: "/heart_rate"                            │  │ │
+│  │  └───────────────┬────────────────────────────────────────────┘  │ │
+│  └──────────────────┼──────────────────────────────────────────────── │
+│                     │ Event Channel                                   │
+│  ┌──────────────────▼──────────────────────────────────────────────┐ │
+│  │                  Flutter Layer (Dart)                           │ │
+│  │  ┌────────────────────────────────────────────────────────────┐ │ │
+│  │  │   MainActivity (Phone)                                     │ │ │
+│  │  │   - Receives Intent with heart rate data                   │ │ │
+│  │  │   - Event Channel for streaming                            │ │ │
+│  │  └───────────────┬────────────────────────────────────────────┘ │ │
+│  │                  │                                               │ │
+│  │  ┌───────────────▼────────────────────────────────────────────┐ │ │
+│  │  │   PhoneDataService                                         │ │ │
+│  │  │   - Decodes JSON to HeartRateData                          │ │ │
+│  │  │   - Updates UI with BPM & IBI values                       │ │ │
+│  │  └────────────────────────────────────────────────────────────┘ │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────┐
+│   Samsung Health Sensor API (Watch Only)    │
+│   - Heart Rate Sensor                       │
+│   - Accelerometer                           │
+│   - Other Biometric Sensors                 │
+└─────────────────────────────────────────────┘
 ```
 
 ### Technology Stack
@@ -96,6 +140,24 @@ class HeartRateData {
   final SensorStatus status;
 }
 
+class TrackedData {
+  final int hr;
+  final List<int> ibi;
+  
+  TrackedData({required this.hr, required this.ibi});
+  
+  factory TrackedData.fromJson(Map<String, dynamic> json) {
+    return TrackedData(
+      hr: json['hr'] ?? 0,
+      ibi: List<int>.from(json['ibi'] ?? []),
+    );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {'hr': hr, 'ibi': ibi};
+  }
+}
+
 enum SensorStatus {
   active,
   inactive,
@@ -110,11 +172,11 @@ enum PermissionStatus {
 }
 ```
 
-### 2. Native Android Layer Components
+### 2. Native Android Layer Components (Watch)
 
-#### MainActivity (Kotlin)
+#### MainActivity (Kotlin) - Watch
 
-Enhanced to handle Method Channel calls and route to SamsungHealthManager.
+Enhanced to handle Method Channel calls and route to HealthTrackingManager and WatchToPhoneSyncManager.
 
 ```kotlin
 class MainActivity: FlutterActivity() {
@@ -141,21 +203,60 @@ class MainActivity: FlutterActivity() {
             "startHeartRate" -> startHeartRateTracking(result)
             "stopHeartRate" -> stopHeartRateTracking(result)
             "getCurrentHeartRate" -> getCurrentHeartRate(result)
+            "sendBatchToPhone" -> sendBatchToPhone(result)
             else -> result.notImplemented()
+        }
+    }
+    
+    private fun requestPermission(result: Result) {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            "android.permission.health.READ_HEART_RATE"
+        } else {
+            Manifest.permission.BODY_SENSORS
+        }
+        // Request appropriate permission based on Android version
+    }
+    
+    private fun sendBatchToPhone(result: Result) {
+        val data = healthManager.getValidHrData()
+        val json = Json.encodeToString(data)
+        syncManager.sendBatchToPhone(json) { success ->
+            result.success(success)
         }
     }
 }
 ```
 
-#### SamsungHealthManager (Kotlin)
+#### TrackedData (Kotlin) - Watch
 
-Core manager for Samsung Health Sensor API integration.
+Data class for heart rate measurements with IBI values.
 
 ```kotlin
-class SamsungHealthManager(private val context: Context) {
-    private var connectionListener: ConnectionListener? = null
-    private var heartRateListener: HeartRateListener? = null
-    private var isConnected: Boolean = false
+@Serializable
+data class TrackedData(
+    var hr: Int = 0,
+    var ibi: ArrayList<Int> = ArrayList()
+)
+```
+
+#### HealthTrackingManager (Kotlin) - Watch
+
+Core manager for Samsung Health Sensor API integration with data validation and batch collection.
+
+```kotlin
+class HealthTrackingManager(
+    private val context: Context,
+    private val onHeartRateData: (HeartRateData) -> Unit,
+    private val onError: (String, String?) -> Unit
+) {
+    private var healthTrackingService: HealthTrackingService? = null
+    private var heartRateTracker: HealthTracker? = null
+    private var isTracking: Boolean = false
+    private var isServiceConnected: Boolean = false
+    
+    // Data collection
+    private val validHrData = ArrayList<TrackedData>()
+    private val maxDataPoints = 40
     
     // Connection management
     fun connect(callback: (Boolean, String?) -> Unit)
@@ -163,9 +264,16 @@ class SamsungHealthManager(private val context: Context) {
     fun isConnected(): Boolean
     
     // Heart rate tracking
-    fun startHeartRateTracking(callback: (Int, Long) -> Unit)
-    fun stopHeartRateTracking()
-    fun getLastHeartRate(): Pair<Int, Long>?
+    fun startTracking(): Boolean
+    fun stopTracking()
+    
+    // Data validation
+    private fun isHRValid(status: Int): Boolean
+    private fun getValidIbiList(dataPoint: DataPoint): List<Int>
+    
+    // Batch data management
+    fun getValidHrData(): ArrayList<TrackedData>
+    private fun trimDataList()
     
     // Lifecycle
     fun onResume()
@@ -174,9 +282,80 @@ class SamsungHealthManager(private val context: Context) {
 }
 ```
 
-### 3. Method Channel Protocol
+#### WatchToPhoneSyncManager (Kotlin) - Watch
 
-#### Method Calls (Flutter → Android)
+Manages data synchronization from watch to phone using Wearable Data Layer API.
+
+```kotlin
+class WatchToPhoneSyncManager(private val context: Context) {
+    private val messageClient: MessageClient
+    private val capabilityClient: CapabilityClient
+    private val nodeClient: NodeClient
+    
+    // Data transmission
+    fun sendHeartRateToPhone(jsonData: String, callback: (Boolean) -> Unit)
+    fun sendBatchToPhone(jsonData: String, callback: (Boolean) -> Unit)
+    
+    // Connection management
+    suspend fun checkPhoneConnection(): Boolean
+    suspend fun getConnectedNodesCount(): Int
+    suspend fun findPhoneNode(): Node?
+    
+    // Node discovery
+    private suspend fun getConnectedNodes(): List<Node>
+    private suspend fun getCapableNodes(): Set<Node>
+}
+```
+
+### 3. Native Android Layer Components (Phone)
+
+#### PhoneDataListenerService (Kotlin) - Phone
+
+Service that receives heart rate data from the watch via Wearable Data Layer.
+
+```kotlin
+class PhoneDataListenerService : WearableListenerService() {
+    companion object {
+        private const val MESSAGE_PATH = "/heart_rate"
+        var eventSink: EventChannel.EventSink? = null
+    }
+    
+    override fun onMessageReceived(messageEvent: MessageEvent) {
+        // Handle incoming messages from watch
+        // Decode JSON and forward to Flutter via EventChannel
+    }
+    
+    private fun handleHeartRateData(messageEvent: MessageEvent)
+    private fun launchMainActivity(data: String)
+}
+```
+
+#### MainActivity (Kotlin) - Phone
+
+Handles EventChannel setup for receiving watch data in Flutter.
+
+```kotlin
+class MainActivity: FlutterActivity() {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        // Set up EventChannel for phone data listener
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flowfit.phone/heartrate")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    PhoneDataListenerService.eventSink = events
+                }
+                override fun onCancel(arguments: Any?) {
+                    PhoneDataListenerService.eventSink = null
+                }
+            })
+    }
+}
+```
+
+### 4. Method Channel Protocol
+
+#### Method Calls (Flutter → Android) - Watch Side
+
+**Channel:** `com.flowfit.watch/data`
 
 | Method | Arguments | Return Type | Description |
 |--------|-----------|-------------|-------------|
@@ -188,24 +367,61 @@ class SamsungHealthManager(private val context: Context) {
 | `stopHeartRate` | None | `void` | Stop heart rate tracking |
 | `getCurrentHeartRate` | None | `Map` | Get latest heart rate data |
 
+**Channel:** `com.flowfit.watch/sync`
+
+| Method | Arguments | Return Type | Description |
+|--------|-----------|-------------|-------------|
+| `sendHeartRateToPhone` | `data: String` (JSON) | `bool` | Send heart rate data to phone |
+| `sendBatchToPhone` | `data: String` (JSON) | `bool` | Send batch data to phone |
+| `checkPhoneConnection` | None | `bool` | Check if phone is connected |
+| `getConnectedNodesCount` | None | `int` | Get count of connected nodes |
+
 #### Event Channels (Android → Flutter)
+
+**Watch Side:**
 
 | Channel | Data Type | Description |
 |---------|-----------|-------------|
-| `com.flowfit.watch/heartrate` | `Map<String, dynamic>` | Stream of heart rate updates |
+| `com.flowfit.watch/heartrate` | `Map<String, dynamic>` | Stream of heart rate updates from sensor |
+
+**Phone Side:**
+
+| Channel | Data Type | Description |
+|---------|-----------|-------------|
+| `com.flowfit.phone/heartrate` | `String` (JSON) | Stream of heart rate data received from watch |
 
 ## Data Models
 
-### HeartRateData
+### HeartRateData (Watch Sensor)
 
 ```dart
 {
-  "bpm": int,           // Beats per minute
+  "bpm": int?,          // Beats per minute (null if invalid)
+  "ibiValues": List<int>, // Inter-beat intervals in milliseconds
   "timestamp": int,     // Unix timestamp in milliseconds
-  "status": String,     // "active", "inactive", "error", "unavailable"
-  "ibi": int?          // Inter-beat interval (optional)
+  "status": String      // "active", "inactive", "error", "unavailable"
 }
 ```
+
+### Watch-to-Phone Message Format
+
+**Message Path:** `/heart_rate`
+
+**JSON Payload:**
+```json
+{
+  "bpm": 72,
+  "ibiValues": [850, 845, 855, 848],
+  "timestamp": 1732507200000,
+  "status": "active"
+}
+```
+
+**Key Requirements:**
+- Must use exact path `/heart_rate` (not `/heart_rate_data`)
+- JSON encoding for extensibility
+- ibiValues array contains valid IBI measurements in milliseconds
+- status indicates data quality
 
 ### ConnectionStatus
 
@@ -289,6 +505,74 @@ class SamsungHealthManager(private val context: Context) {
 ### Property 17: Service cleanup on tracking stop
 *For any* state where all tracking is stopped, the foreground service should stop and the notification should be removed.
 **Validates: Requirements 7.4**
+
+### Property 18: Watch data transmission to phone
+*For any* heart rate data collected on the watch, when a phone node is available, the data should be successfully transmitted to the phone via the Wearable Data Layer.
+**Validates: Requirements 8.1**
+
+### Property 19: Phone receives watch data timely
+*For any* heart rate data sent from the watch, when received by the phone, it should be delivered to the Flutter layer within 2 seconds.
+**Validates: Requirements 8.2**
+
+### Property 20: Node discovery via capability
+*For any* attempt to send data from watch to phone, the system should use CapabilityClient to discover connected phone nodes rather than hardcoded node IDs.
+**Validates: Requirements 8.3**
+
+### Property 21: Graceful handling of no phone connection
+*For any* state where no phone nodes are available, attempting to send data should handle the error gracefully without crashing.
+**Validates: Requirements 8.4**
+
+### Property 22: Phone app launch on data reception
+*For any* heart rate data received by the phone when the app is not running, the system should launch the phone app.
+**Validates: Requirements 8.5**
+
+### Property 23: Consistent message path usage
+*For any* heart rate data transmission from watch to phone, the message path should be exactly "/heart_rate".
+**Validates: Requirements 9.1**
+
+### Property 24: JSON encoding consistency
+*For any* heart rate data encoded for transmission, the JSON should contain bpm, ibiValues, timestamp, and status fields.
+**Validates: Requirements 9.2**
+
+### Property 25: Message path filtering on phone
+*For any* message received by the phone, only messages with path "/heart_rate" should be processed as heart rate data.
+**Validates: Requirements 9.3**
+
+### Property 26: JSON decoding validation
+*For any* JSON data received on the phone, the system should validate that required fields (bpm, ibiValues, timestamp, status) are present before processing.
+**Validates: Requirements 9.4**
+
+### Property 27: Transmission error logging
+*For any* message transmission failure, the system should log the error with descriptive information including node ID and error message.
+**Validates: Requirements 9.5**
+
+### Property 28: Android version-aware permission request
+*For any* device running Android 15 or higher, requesting sensor permission should request health.READ_HEART_RATE, and for Android 14 or lower, should request BODY_SENSORS.
+**Validates: Requirements 10.1, 10.2**
+
+### Property 29: Heart rate status validation
+*For any* heart rate measurement received, only measurements with valid status indicators should be stored in the data collection.
+**Validates: Requirements 11.1, 11.2**
+
+### Property 30: IBI status filtering
+*For any* IBI values received, only IBI measurements with valid status indicators should be included in the TrackedData.
+**Validates: Requirements 11.3**
+
+### Property 31: Data collection size limit
+*For any* data collection containing more than 40 measurements, adding a new measurement should remove the oldest measurement to maintain the limit.
+**Validates: Requirements 12.2**
+
+### Property 32: Batch data encoding
+*For any* batch send operation, all stored TrackedData measurements should be encoded as a JSON array.
+**Validates: Requirements 12.4**
+
+### Property 33: TrackedData serialization round-trip
+*For any* TrackedData object, serializing to JSON and then deserializing should produce an equivalent object with the same hr and ibi values.
+**Validates: Requirements 13.1, 13.2, 13.3**
+
+### Property 34: Phone UI displays received data
+*For any* heart rate data received by the phone, the UI should display both the BPM value and IBI measurements.
+**Validates: Requirements 14.2, 14.3**
 
 ## Error Handling
 
@@ -391,6 +675,62 @@ Manual testing on physical Galaxy Watch 6 device will verify:
 - UI responsiveness during sensor operations
 - Notification behavior
 
+## Watch-to-Phone Data Flow
+
+### Sequence Diagram
+
+```
+Watch App
+  |
+  |--[User starts tracking]-->
+  |  MainActivity.kt (Watch)
+  |
+  |--[Connects to HealthTrackingService]-->
+  |  HealthTrackingManager.kt
+  |
+  |--[onConnectionSuccess fires]-->
+  |  HealthTrackingManager.kt
+  |
+  |--[Heart rate data received]-->
+  |  HealthTrackingManager.kt
+  |
+  |--[Encode as JSON]-->
+  |  WatchToPhoneSyncManager.kt
+  |
+  |--[Discover phone nodes via CapabilityClient]-->
+  |  WatchToPhoneSyncManager.kt
+  |
+  |--[Send via MessageClient to "/heart_rate"]-->
+  |  Wearable Data Layer API
+  |
+  |--[Phone receives message]-->
+  |  PhoneDataListenerService.kt
+  |
+  |--[Filter by path "/heart_rate"]-->
+  |  PhoneDataListenerService.kt
+  |
+  |--[Decode JSON]-->
+  |  PhoneDataListenerService.kt
+  |
+  |--[Send to Flutter via EventChannel]-->
+  |  MainActivity.kt (Phone)
+  |
+  |--[UI updated with BPM/IBI]-->
+  |  Flutter UI
+```
+
+### Critical Implementation Details
+
+1. **Wait for Connection Success**: The watch must wait for `onConnectionSuccess()` callback before checking capabilities or starting tracking. Accessing the service before connection completes will result in null binder errors.
+
+2. **Use CapabilityClient for Node Discovery**: Never hardcode node IDs. Always use CapabilityClient to discover phone nodes with the `flowfit_phone_app` or `heart_rate_receiver` capability.
+
+3. **Consistent Message Paths**: The message path must be exactly `/heart_rate` on both watch (send) and phone (receive). Any mismatch will cause messages to be ignored.
+
+4. **Background Message Reception**: PhoneDataListenerService must be declared in AndroidManifest.xml with proper intent-filter to receive messages even when the app is closed.
+
+5. **JSON Encoding**: Always encode data as JSON for extensibility and ease of parsing. Include all required fields: bpm, ibiValues, timestamp, status.
+
 ## Implementation Considerations
 
 ### Gradle Configuration
@@ -415,6 +755,8 @@ android {
 
 ### AndroidManifest Configuration
 
+**Watch App:**
+
 Required permissions and queries:
 
 ```xml
@@ -426,6 +768,41 @@ Required permissions and queries:
     <package android:name="com.samsung.android.service.health.tracking" />
 </queries>
 ```
+
+**Phone App:**
+
+PhoneDataListenerService declaration:
+
+```xml
+<service
+    android:name=".PhoneDataListenerService"
+    android:enabled="true"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+        <data
+            android:host="*"
+            android:pathPrefix="/heart_rate"
+            android:scheme="wear" />
+    </intent-filter>
+</service>
+```
+
+**Critical:** The `pathPrefix` must be `/heart_rate` (not `/heart_rate_data`) to match the message path used by WatchToPhoneSyncManager.
+
+**Phone App Capability Declaration (wear.xml):**
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="android_wear_capabilities">
+        <item>flowfit_phone_app</item>
+        <item>heart_rate_receiver</item>
+    </string-array>
+</resources>
+```
+
+This capability declaration allows the watch to discover the phone app using CapabilityClient.
 
 ### Flutter Permission Plugin
 

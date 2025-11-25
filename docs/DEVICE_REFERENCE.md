@@ -69,6 +69,15 @@ adb-RFAX21TD0NA-FFYRNh._adb-tls-connect._tcp device product:fresh6bsue model:SM_
 
 ## 🚀 Most Common Commands
 
+### Quick Test (NEW!)
+```bash
+# Test watch app
+scripts\test-watch.bat
+
+# Test phone app
+scripts\test-phone.bat
+```
+
 ### Run Watch App
 ```bash
 scripts\run_watch.bat
@@ -81,13 +90,34 @@ scripts\run_phone.bat
 
 ### View Watch Logs
 ```bash
-adb -s adb-RFAX21TD0NA-FFYRNh._adb-tls-connect._tcp logcat | findstr "FlowFit"
+adb -s SM_R930 logcat | findstr "WatchToPhoneSync\|HealthTracking"
 ```
 
 ### View Phone Logs
 ```bash
-adb -s 6ece264d logcat | findstr "FlowFit"
+adb -s 22101320G logcat | findstr "PhoneDataListener"
 ```
+
+### Check Connection
+```bash
+# Watch logs for connection status
+adb -s SM_R930 logcat | findstr "=== Checking phone connection ==="
+
+# Should see:
+# WatchToPhoneSync: ✓ Connected node: [Phone Name]
+```
+
+---
+
+## 🆕 Latest Updates
+
+**Watch UI Redesigned:**
+- Clean single-button dashboard
+- Large 56pt BPM display
+- Simple START/STOP/SEND buttons
+- Better connection handling
+
+**See:** `WATCH_UI_REDESIGN.md` and `docs/LATEST_IMPROVEMENTS.md`
 
 ---
 

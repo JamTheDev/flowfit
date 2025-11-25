@@ -12,11 +12,14 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.EventChannel
 import com.samsung.wearable_rotary.WearableRotaryPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class MainActivity: FlutterActivity() {
     companion object {
@@ -30,6 +33,7 @@ class MainActivity: FlutterActivity() {
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var heartRateEventSink: EventChannel.EventSink? = null
     private var healthTrackingManager: HealthTrackingManager? = null
+    private var watchToPhoneSyncManager: WatchToPhoneSyncManager? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main)
     
@@ -45,8 +49,10 @@ class MainActivity: FlutterActivity() {
     }
     
     private fun initializeHealthTracking() {
+        // CRITICAL: Use applicationContext instead of 'this' (activity context)
+        // This ensures the HealthTrackingService survives activity lifecycle changes
         healthTrackingManager = HealthTrackingManager(
-            context = this,
+            context = applicationContext,  // KEY CHANGE: Use Application context
             onHeartRateData = { data ->
                 // Convert to map for Flutter
                 val dataMap = mapOf(
@@ -71,6 +77,9 @@ class MainActivity: FlutterActivity() {
                 }
             }
         )
+        
+        // Initialize watch-to-phone sync manager (also use application context)
+        watchToPhoneSyncManager = WatchToPhoneSyncManager(applicationContext)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -91,7 +100,18 @@ class MainActivity: FlutterActivity() {
             }
         }
         
-        // Heart rate event channel for streaming data
+        // Watch-to-Phone sync method channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flowfit.watch/sync").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "sendHeartRateToPhone" -> sendHeartRateToPhone(call, result)
+                "sendBatchToPhone" -> sendBatchToPhone(result)
+                "checkPhoneConnection" -> checkPhoneConnection(result)
+                "getConnectedNodesCount" -> getConnectedNodesCount(result)
+                else -> result.notImplemented()
+            }
+        }
+        
+        // Heart rate event channel for streaming data (watch side)
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -103,14 +123,37 @@ class MainActivity: FlutterActivity() {
                 }
             }
         )
+        
+        // Phone data listener event channel (phone side - receives from watch)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flowfit.phone/heartrate").setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    PhoneDataListenerService.eventSink = events
+                    Log.i(TAG, "Phone data listener event sink registered")
+                }
+                
+                override fun onCancel(arguments: Any?) {
+                    PhoneDataListenerService.eventSink = null
+                    Log.i(TAG, "Phone data listener event sink cancelled")
+                }
+            }
+        )
     }
 
     /**
-     * Request BODY_SENSORS permission from the user
+     * Request body sensor permission from the user
+     * Uses health.READ_HEART_RATE for Android 15+ (BAKLAVA), BODY_SENSORS for older versions
      */
     private fun requestPermission(result: MethodChannel.Result) {
         try {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS) 
+            // Determine which permission to request based on Android version
+            val permission = if (android.os.Build.VERSION.SDK_INT >= 35) { // Android 15 (BAKLAVA)
+                "android.permission.health.READ_HEART_RATE"
+            } else {
+                Manifest.permission.BODY_SENSORS
+            }
+            
+            if (ContextCompat.checkSelfPermission(this, permission) 
                 == PackageManager.PERMISSION_GRANTED) {
                 // Permission already granted
                 result.success(true)
@@ -119,7 +162,7 @@ class MainActivity: FlutterActivity() {
                 pendingPermissionResult = result
                 ActivityCompat.requestPermissions(
                     this,
-                    arrayOf(Manifest.permission.BODY_SENSORS),
+                    arrayOf(permission),
                     PERMISSION_REQUEST_CODE
                 )
             }
@@ -133,15 +176,23 @@ class MainActivity: FlutterActivity() {
     }
 
     /**
-     * Check the current BODY_SENSORS permission status
+     * Check the current body sensor permission status
+     * Checks health.READ_HEART_RATE for Android 15+, BODY_SENSORS for older versions
      */
     private fun checkPermission(result: MethodChannel.Result) {
         try {
-            val status = when (ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS)) {
+            // Determine which permission to check based on Android version
+            val permission = if (android.os.Build.VERSION.SDK_INT >= 35) { // Android 15 (BAKLAVA)
+                "android.permission.health.READ_HEART_RATE"
+            } else {
+                Manifest.permission.BODY_SENSORS
+            }
+            
+            val status = when (ContextCompat.checkSelfPermission(this, permission)) {
                 PackageManager.PERMISSION_GRANTED -> "granted"
                 PackageManager.PERMISSION_DENIED -> {
                     // Check if we should show rationale (user denied but can ask again)
-                    if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.BODY_SENSORS)) {
+                    if (ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
                         "denied"
                     } else {
                         // User permanently denied or hasn't been asked yet
@@ -193,8 +244,20 @@ class MainActivity: FlutterActivity() {
         }
         
         try {
-            val connected = manager.connect()
-            result.success(connected)
+            // Use callback-based connection to wait for ConnectionListener
+            manager.connect { success, error ->
+                mainHandler.post {
+                    if (success) {
+                        result.success(true)
+                    } else {
+                        result.error(
+                            "CONNECTION_FAILED",
+                            error ?: "Unknown connection error",
+                            null
+                        )
+                    }
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error connecting to watch", e)
             result.error(
@@ -299,6 +362,149 @@ class MainActivity: FlutterActivity() {
     }
     
     /**
+     * Send heart rate data to phone
+     */
+    private fun sendHeartRateToPhone(call: MethodCall, result: MethodChannel.Result) {
+        val syncManager = watchToPhoneSyncManager
+        if (syncManager == null) {
+            result.error(
+                "SYNC_ERROR",
+                "Sync manager not initialized",
+                null
+            )
+            return
+        }
+
+        val jsonData = call.argument<String>("data")
+        if (jsonData == null) {
+            result.error(
+                "INVALID_DATA",
+                "No data provided",
+                null
+            )
+            return
+        }
+
+        syncManager.sendHeartRateToPhone(jsonData) { success ->
+            mainHandler.post {
+                result.success(success)
+            }
+        }
+    }
+
+    /**
+     * Send batch data to phone
+     * Retrieves all collected TrackedData and sends as JSON array
+     */
+    private fun sendBatchToPhone(result: MethodChannel.Result) {
+        val manager = healthTrackingManager
+        if (manager == null) {
+            result.error(
+                "MANAGER_ERROR",
+                "Health tracking manager not initialized",
+                null
+            )
+            return
+        }
+        
+        val syncManager = watchToPhoneSyncManager
+        if (syncManager == null) {
+            result.error(
+                "SYNC_ERROR",
+                "Sync manager not initialized",
+                null
+            )
+            return
+        }
+
+        scope.launch {
+            try {
+                // Get all valid HR data
+                val data = manager.getValidHrData()
+                
+                if (data.isEmpty()) {
+                    Log.w(TAG, "No data to send")
+                    mainHandler.post {
+                        result.success(false)
+                    }
+                    return@launch
+                }
+                
+                // Serialize to JSON
+                val json = Json.encodeToString(data)
+                Log.i(TAG, "Sending batch of ${data.size} measurements to phone")
+                
+                // Send via sync manager
+                syncManager.sendBatchToPhone(json) { success ->
+                    mainHandler.post {
+                        if (success) {
+                            Log.i(TAG, "Batch sent successfully")
+                        } else {
+                            Log.e(TAG, "Failed to send batch")
+                        }
+                        result.success(success)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending batch", e)
+                mainHandler.post {
+                    result.error("BATCH_ERROR", e.message, null)
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if phone is connected
+     */
+    private fun checkPhoneConnection(result: MethodChannel.Result) {
+        val syncManager = watchToPhoneSyncManager
+        if (syncManager == null) {
+            result.success(false)
+            return
+        }
+
+        scope.launch {
+            try {
+                val connected = syncManager.checkPhoneConnection()
+                mainHandler.post {
+                    result.success(connected)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking phone connection", e)
+                mainHandler.post {
+                    result.success(false)
+                }
+            }
+        }
+    }
+
+    /**
+     * Get connected nodes count
+     */
+    private fun getConnectedNodesCount(result: MethodChannel.Result) {
+        val syncManager = watchToPhoneSyncManager
+        if (syncManager == null) {
+            result.success(0)
+            return
+        }
+
+        scope.launch {
+            try {
+                val count = syncManager.getConnectedNodesCount()
+                mainHandler.post {
+                    result.success(count)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting connected nodes count", e)
+                mainHandler.post {
+                    result.success(0)
+                }
+            }
+        }
+    }
+
+    /**
      * Handle onDestroy lifecycle event
      * Complete cleanup of resources
      */
@@ -307,6 +513,8 @@ class MainActivity: FlutterActivity() {
         // Clean up health tracking
         healthTrackingManager?.disconnect()
         healthTrackingManager = null
+        // Clean up sync manager
+        watchToPhoneSyncManager = null
         // Clean up event sink
         heartRateEventSink = null
     }

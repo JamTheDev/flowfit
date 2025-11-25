@@ -25,11 +25,20 @@ class HealthTrackingManager(
         // Heart rate status codes
         private const val HR_STATUS_VALID = 1
         private const val IBI_STATUS_VALID = 0
+        
+        // Maximum number of data points to store
+        private const val MAX_DATA_POINTS = 40
     }
 
     private var healthTrackingService: HealthTrackingService? = null
     private var heartRateTracker: HealthTracker? = null
     private var isTracking = false
+
+    private var isServiceConnected = false
+    private var connectionCallback: ((Boolean, String?) -> Unit)? = null
+    
+    // Batch data collection
+    private val validHrData = ArrayList<TrackedData>()
 
     /**
      * Connection listener for Samsung Health Tracking Service
@@ -37,49 +46,103 @@ class HealthTrackingManager(
      */
     private val connectionListener = object : ConnectionListener {
         override fun onConnectionSuccess() {
-            Log.i(TAG, "Health Tracking Service connected successfully")
+            Log.i(TAG, "✅ Health Tracking Service connected successfully")
+            isServiceConnected = true
+            
+            // Check capabilities AFTER connection succeeds
+            val hasCapability = hasHeartRateCapability()
+            if (hasCapability) {
+                Log.i(TAG, "✅ Heart rate tracking is supported")
+                connectionCallback?.invoke(true, null)
+            } else {
+                Log.e(TAG, "❌ Heart rate tracking is not supported on this device")
+                connectionCallback?.invoke(false, "Heart rate tracking not available")
+            }
+            connectionCallback = null
         }
 
         override fun onConnectionEnded() {
             Log.i(TAG, "Health Tracking Service connection ended")
+            isServiceConnected = false
+            
+            // FIX 3: Notify callback if waiting
+            connectionCallback?.invoke(false, "Connection ended")
+            connectionCallback = null
+            
             healthTrackingService = null
         }
 
         override fun onConnectionFailed(error: HealthTrackerException?) {
             val errorMsg = error?.message ?: "Unknown connection error"
-            Log.e(TAG, "Health Tracking Service connection failed: $errorMsg")
-            onError("CONNECTION_FAILED", errorMsg)
+            Log.e(TAG, "❌ Health Tracking Service connection failed: $errorMsg")
+            isServiceConnected = false
+            connectionCallback?.invoke(false, errorMsg)
+            connectionCallback = null
             healthTrackingService = null
         }
     }
 
     /**
      * Connect to Samsung Health Tracking Service
+     * Uses callback pattern to wait for ConnectionListener callbacks
      */
-    fun connect(): Boolean {
-        return try {
-            Log.i(TAG, "Attempting to connect to Health Tracking Service")
+    fun connect(callback: (Boolean, String?) -> Unit) {
+        try {
+            val appContext = context.applicationContext
             
-            // Create HealthTrackingService with proper ConnectionListener
-            healthTrackingService = HealthTrackingService(connectionListener, context)
+            Log.i(TAG, "🔄 Attempting to connect to Health Tracking Service")
+            Log.i(TAG, "📱 Using context type: ${appContext.javaClass.simpleName}")
             
-            // Give service time to connect
-            Thread.sleep(500)
-            
-            // Check if heart rate tracking is supported
-            val isSupported = hasHeartRateCapability()
-            if (isSupported) {
-                Log.i(TAG, "Heart rate tracking is supported")
-                true
-            } else {
-                Log.e(TAG, "Heart rate tracking is not supported on this device")
-                onError("SENSOR_NOT_SUPPORTED", "Heart rate tracking not available")
-                false
+            // FIX 1: Check if already connected
+            if (isServiceConnected && healthTrackingService != null) {
+                Log.i(TAG, "✅ Already connected to Health Tracking Service")
+                // Verify connection is still valid
+                try {
+                    val hasCapability = hasHeartRateCapability()
+                    if (hasCapability) {
+                        Log.i(TAG, "✅ Connection validated, returning success")
+                        callback(true, null)
+                        return
+                    } else {
+                        Log.w(TAG, "⚠️ Connection exists but capabilities check failed, reconnecting...")
+                        // Fall through to reconnect
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ Connection exists but validation failed: ${e.message}, reconnecting...")
+                    // Fall through to reconnect
+                }
             }
+            
+            // FIX 2: Disconnect any existing service first
+            if (healthTrackingService != null) {
+                Log.w(TAG, "⚠️ Existing service found, disconnecting first...")
+                try {
+                    stopTracking() // Stop any active tracking
+                    healthTrackingService?.disconnectService()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error disconnecting existing service: ${e.message}")
+                }
+                healthTrackingService = null
+            }
+            
+            // Reset connection state
+            isServiceConnected = false
+            connectionCallback = callback
+            
+            // Create new HealthTrackingService instance
+            healthTrackingService = HealthTrackingService(connectionListener, appContext)
+            
+            // CRITICAL: Must explicitly call connectService() to trigger connection
+            Log.i(TAG, "📡 Calling connectService() to initiate binding...")
+            healthTrackingService?.connectService()
+            
+            Log.i(TAG, "⏳ Waiting for connection callback...")
+            // Connection result will be delivered via connectionListener callbacks
+            
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during connection", e)
-            onError("CONNECTION_FAILED", e.message)
-            false
+            Log.e(TAG, "❌ Exception during connection", e)
+            Log.e(TAG, "❌ Exception details: ${e.javaClass.simpleName} - ${e.message}")
+            callback(false, e.message)
         }
     }
 
@@ -213,17 +276,68 @@ class HealthTrackingManager(
         // Extract IBI (inter-beat interval) data
         val ibiList = getValidIbiList(dataPoint)
         
-        // Only process if we have valid heart rate or IBI data
-        if ((hrStatus == HR_STATUS_VALID && hrValue != null) || ibiList.isNotEmpty()) {
-            val heartRateData = HeartRateData(
-                bpm = if (hrStatus == HR_STATUS_VALID) hrValue else null,
-                ibiValues = ibiList,
-                timestamp = System.currentTimeMillis(),
-                status = if (hrStatus == HR_STATUS_VALID) "active" else "inactive"
+        // Validate HR status and store in batch collection
+        if (isHRValid(hrStatus) && hrValue != null) {
+            val trackedData = TrackedData(
+                hr = hrValue,
+                ibi = ArrayList(ibiList)
             )
             
-            Log.d(TAG, "Heart rate data: ${heartRateData.bpm} bpm, ${ibiList.size} IBI values")
-            onHeartRateData(heartRateData)
+            // Add to batch collection
+            synchronized(validHrData) {
+                validHrData.add(trackedData)
+                trimDataList()
+            }
+            
+            Log.d(TAG, "Valid HR data stored: $hrValue bpm, ${ibiList.size} IBI values (total: ${validHrData.size})")
+        }
+        
+        // Also send to Flutter for real-time display (regardless of validity for monitoring)
+        val heartRateData = HeartRateData(
+            bpm = if (isHRValid(hrStatus)) hrValue else null,
+            ibiValues = ibiList,
+            timestamp = System.currentTimeMillis(),
+            status = if (isHRValid(hrStatus)) "active" else "inactive"
+        )
+        
+        onHeartRateData(heartRateData)
+    }
+    
+    /**
+     * Validate heart rate status
+     * @param status Heart rate status code from sensor
+     * @return true if status indicates valid measurement
+     */
+    private fun isHRValid(status: Int?): Boolean {
+        return status == HR_STATUS_VALID
+    }
+    
+    /**
+     * Trim data list to maintain maximum size
+     * Removes oldest entries when size exceeds MAX_DATA_POINTS
+     */
+    private fun trimDataList() {
+        while (validHrData.size > MAX_DATA_POINTS) {
+            validHrData.removeAt(0)
+        }
+    }
+    
+    /**
+     * Get all valid heart rate data collected
+     * @return ArrayList of TrackedData measurements
+     */
+    fun getValidHrData(): ArrayList<TrackedData> {
+        synchronized(validHrData) {
+            return ArrayList(validHrData)
+        }
+    }
+    
+    /**
+     * Clear all collected data
+     */
+    fun clearValidHrData() {
+        synchronized(validHrData) {
+            validHrData.clear()
         }
     }
 

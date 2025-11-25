@@ -95,3 +95,84 @@ This document specifies the requirements for integrating Samsung Health Sensor A
 2. WHEN the application returns to the foreground, THE FlowFit Application SHALL resume sensor tracking if it was previously active
 3. WHEN sensor tracking is active, THE FlowFit Application SHALL run as a foreground service with a notification
 4. WHEN all tracking is stopped, THE FlowFit Application SHALL stop the foreground service and remove the notification
+
+### Requirement 8
+
+**User Story:** As a user with both a Galaxy Watch and Android phone, I want heart rate data collected on my watch to automatically sync to my phone app, so that I can view and analyze my biometric data on a larger screen.
+
+#### Acceptance Criteria
+
+1. WHEN the watch collects heart rate data, THE FlowFit Application SHALL send the data to the paired phone via Wearable Data Layer API
+2. WHEN the phone receives heart rate data from the watch, THE FlowFit Application SHALL deliver the data to the Flutter layer within 2 seconds
+3. WHEN the watch attempts to send data, THE FlowFit Application SHALL discover connected phone nodes using CapabilityClient
+4. WHEN no phone nodes are available, THE FlowFit Application SHALL handle the error gracefully and queue data for later transmission
+5. WHEN the phone app is not running, THE FlowFit Application SHALL launch the phone app upon receiving watch data
+
+### Requirement 9
+
+**User Story:** As a developer, I want to use consistent message paths and data formats for watch-to-phone communication, so that data transfer is reliable and maintainable.
+
+#### Acceptance Criteria
+
+1. WHEN sending heart rate data from watch to phone, THE FlowFit Application SHALL use the message path "/heart_rate"
+2. WHEN encoding heart rate data for transmission, THE FlowFit Application SHALL format data as JSON with bpm, ibiValues, timestamp, and status fields
+3. WHEN the phone receives a message, THE FlowFit Application SHALL filter messages by the "/heart_rate" path
+4. WHEN decoding received data, THE FlowFit Application SHALL parse JSON and validate required fields
+5. WHEN message transmission fails, THE FlowFit Application SHALL log the error with descriptive information
+
+### Requirement 10
+
+**User Story:** As a developer, I want to support Android 15+ health permissions, so that the application works correctly on newer Android versions.
+
+#### Acceptance Criteria
+
+1. WHEN the device runs Android 15 or higher, THE FlowFit Application SHALL request android.permission.health.READ_HEART_RATE permission
+2. WHEN the device runs Android 14 or lower, THE FlowFit Application SHALL request android.permission.BODY_SENSORS permission
+3. WHEN checking permissions, THE FlowFit Application SHALL check the appropriate permission based on Android version
+4. WHEN the AndroidManifest is parsed, THE FlowFit Application SHALL declare both BODY_SENSORS and health.READ_HEART_RATE permissions
+
+### Requirement 11
+
+**User Story:** As a developer, I want to validate and filter heart rate data quality, so that only accurate measurements are stored and transmitted.
+
+#### Acceptance Criteria
+
+1. WHEN a heart rate measurement is received, THE FlowFit Application SHALL validate the heart rate status indicator
+2. WHEN the heart rate status indicates invalid data, THE FlowFit Application SHALL discard the measurement
+3. WHEN IBI values are received, THE FlowFit Application SHALL filter out invalid IBI measurements based on status indicators
+4. WHEN valid heart rate data is received, THE FlowFit Application SHALL store it in the data collection
+
+### Requirement 12
+
+**User Story:** As a user, I want the watch to collect and batch heart rate data, so that I can send multiple readings to my phone efficiently.
+
+#### Acceptance Criteria
+
+1. WHEN valid heart rate data is collected, THE FlowFit Application SHALL store the data in a local collection
+2. WHEN the data collection exceeds 40 measurements, THE FlowFit Application SHALL remove the oldest measurement
+3. WHEN a batch send is requested, THE FlowFit Application SHALL retrieve all stored measurements
+4. WHEN sending batch data to phone, THE FlowFit Application SHALL encode all measurements as a JSON array
+5. WHEN batch data is received on phone, THE FlowFit Application SHALL parse the JSON array and process each measurement
+
+### Requirement 13
+
+**User Story:** As a developer, I want to use a TrackedData model for heart rate information, so that data structure is consistent across watch and phone.
+
+#### Acceptance Criteria
+
+1. WHEN heart rate data is collected, THE FlowFit Application SHALL create a TrackedData object with hr and ibi fields
+2. WHEN serializing TrackedData for transmission, THE FlowFit Application SHALL encode it as JSON with hr and ibi fields
+3. WHEN deserializing TrackedData from JSON, THE FlowFit Application SHALL validate that hr and ibi fields are present
+4. WHEN displaying TrackedData, THE FlowFit Application SHALL show both heart rate value and IBI measurements
+
+### Requirement 14
+
+**User Story:** As a user, I want an enhanced phone UI to view heart rate data from my watch, so that I can easily monitor my biometric data.
+
+#### Acceptance Criteria
+
+1. WHEN the phone receives heart rate data, THE FlowFit Application SHALL display the data in a dedicated screen
+2. WHEN displaying heart rate data, THE FlowFit Application SHALL show BPM value prominently
+3. WHEN displaying heart rate data, THE FlowFit Application SHALL show IBI values in a readable format
+4. WHEN no data has been received, THE FlowFit Application SHALL display an appropriate message
+5. WHEN the watch connection status changes, THE FlowFit Application SHALL update the UI to reflect the current status
