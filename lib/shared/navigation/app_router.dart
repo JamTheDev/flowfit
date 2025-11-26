@@ -19,6 +19,23 @@ class AppRouter {
         ),
       ),
       
+      // Active/Workout tracking route
+      GoRoute(
+        path: '/active',
+        builder: (context, state) {
+          final activityType = state.uri.queryParameters['type'];
+          return Scaffold(
+            body: Center(
+              child: Text(
+                activityType != null
+                    ? 'Activity Tracking - $activityType'
+                    : 'Workout Selection - To be implemented',
+              ),
+            ),
+          );
+        },
+      ),
+      
       // Fitness routes - to be implemented
       GoRoute(
         path: '/fitness',
