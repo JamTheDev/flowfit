@@ -12,6 +12,8 @@ import 'package:geolocator/geolocator.dart';
 import '../domain/geofence_mission.dart';
 import '../data/geofence_repository.dart';
 import '../services/geofence_service.dart';
+import 'widgets/place_mode_overlay.dart';
+import 'widgets/map_components.dart';
 
 class WellnessMapsPage extends StatefulWidget {
   const WellnessMapsPage({super.key});
@@ -26,6 +28,14 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   maplat.LatLng? _lastCenter;
   StreamSubscription<GeofenceEvent>? _eventsSub;
   bool _missionsVisible = true;
+  // Place mode state
+  bool _isPlacingMission = false;
+  maplat.LatLng? _placingLatLng;
+  double _placingRadius = 50.0;
+  MissionType _placingType = MissionType.sanctuary;
+  double? _placingTargetDistance;
+  // Title for place-mode is stored in `_placingTitleController.text`
+  final TextEditingController _placingTitleController = TextEditingController();
 
   GeofenceRepository _getRepo() {
     try {
@@ -87,6 +97,7 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   void dispose() {
     _mapController?.dispose();
     _eventsSub?.cancel();
+    _placingTitleController.dispose();
     super.dispose();
   }
 
@@ -104,16 +115,56 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   }
 
   Future<void> _addGeofenceAtLatLng(maplat.LatLng latLng) async {
-    final mission = await showDialog<GeofenceMission>(
-      context: context,
-      builder: (ctx) {
-        return _AddMissionDialog(latLng: latLng);
-      },
+    // Begin 'place mode' so user can pick exact location/radius on the map
+    _startPlacingAtLatLng(latLng);
+  }
+
+  void _handleMissionTap(GeofenceMission m) {
+    _mapController?.move(maplat.LatLng(m.center.latitude, m.center.longitude), 16.0);
+    _showMissionActions(m);
+  }
+
+  void _startPlacingAtLatLng(maplat.LatLng latLng) {
+    setState(() {
+      _isPlacingMission = true;
+      _placingLatLng = latLng;
+      _placingRadius = 50.0;
+      _placingType = MissionType.sanctuary;
+      _placingTargetDistance = null;
+      _placingTitleController.text = '';
+    });
+    // Keep map centered on chosen point
+    _mapController?.move(latLng, 16.0);
+  }
+
+  void _cancelPlaceMode() {
+    setState(() {
+      _isPlacingMission = false;
+      _placingLatLng = null;
+    });
+  }
+
+  Future<void> _confirmPlaceMode() async {
+    if (_placingLatLng == null) return;
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final title = _placingTitleController.text.trim();
+    final mission = GeofenceMission(
+      id: id,
+      title: title.isEmpty ? 'Mission $id' : title,
+      description: null,
+      center: LatLngSimple(_placingLatLng!.latitude, _placingLatLng!.longitude),
+      radiusMeters: _placingRadius,
+      type: _placingType,
+      isActive: false,
+      targetDistanceMeters: _placingType == MissionType.target ? _placingTargetDistance : null,
     );
-    if (mission != null) {
-      final repo = _getRepo();
-      await repo.add(mission);
-    }
+    final repo = _getRepo();
+    await repo.add(mission);
+    setState(() {
+      _isPlacingMission = false;
+      _placingLatLng = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mission added')));
   }
 
   @override
@@ -133,47 +184,14 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
     final circles = <fm.CircleMarker>[];
 
     for (final m in repo.current) {
-  final marker = fm.Marker(
-        width: 36,
-        height: 36,
-        point: maplat.LatLng(m.center.latitude, m.center.longitude),
-        child: GestureDetector(
-          onTap: () {
-            _mapController?.move(
-              maplat.LatLng(m.center.latitude, m.center.longitude),
-              16.0,
-            );
-            _showMissionActions(m);
-          },
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: m.isActive ? Colors.greenAccent : Colors.redAccent,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4.0)],
-            ),
-            child: Icon(
-              Icons.location_on,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-        ),
-      );
-      markers.add(marker);
+      markers.add(buildMissionMarker(m, () => _handleMissionTap(m)));
+      circles.add(buildMissionCircle(m));
+    }
 
-      final circle = fm.CircleMarker(
-        point: maplat.LatLng(m.center.latitude, m.center.longitude),
-        color: (m.isActive
-            ? Colors.greenAccent.withOpacity(0.2)
-            : Colors.redAccent.withOpacity(0.1)),
-        borderStrokeWidth: 1.0,
-        borderColor: m.isActive ? Colors.green : Colors.red,
-        radius: m.radiusMeters.toDouble(),
-        useRadiusInMeter: true,
-      );
-      circles.add(circle);
+    // preview candidate marker + circle if placing a mission
+    if (_isPlacingMission && _placingLatLng != null) {
+      markers.add(buildPreviewMarker(_placingLatLng!));
+      circles.add(buildPreviewCircle(_placingLatLng!, _placingRadius));
     }
 
     return Scaffold(
@@ -191,6 +209,11 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
                           _addGeofenceAtLatLng(
                             maplat.LatLng(latlng.latitude, latlng.longitude),
                           ),
+                      onTap: (tapPosition, latlng) {
+                        if (_isPlacingMission) {
+                          setState(() => _placingLatLng = maplat.LatLng(latlng.latitude, latlng.longitude));
+                        }
+                      },
                       onPositionChanged: (pos, _) {
                         setState(() => _lastCenter = pos.center);
                       },
@@ -279,6 +302,18 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
                 ),
               ),
             ),
+          ),
+
+          PlaceModeOverlay(
+            visible: _isPlacingMission,
+            latLng: _placingLatLng,
+            radius: _placingRadius,
+            titleController: _placingTitleController,
+            type: _placingType,
+            onRadiusChanged: (v) => setState(() => _placingRadius = v),
+            onTypeChanged: (t) => setState(() => _placingType = t ?? MissionType.sanctuary),
+            onCancel: _cancelPlaceMode,
+            onConfirm: () async => await _confirmPlaceMode(),
           ),
 
           // Bottom sheet with missions (draggable)

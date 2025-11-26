@@ -157,7 +157,11 @@ class MainActivity: FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // Ensure plugins are registered explicitly here to avoid runtime registration errors
         // (Sometimes plugins fail to register when AAR metadata causes issues at build time.)
-        GeneratedPluginRegistrant.registerWith(flutterEngine)
+        try {
+            GeneratedPluginRegistrant.registerWith(flutterEngine)
+        } catch (e: Exception) {
+            Log.w(TAG, "GeneratedPluginRegistrant.registerWith failed, continuing: ${'$'}e")
+        }
                 // Geofence method and event channels for native background integration
                 MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flowfit.geofence/native").setMethodCallHandler { call, result ->
                     when (call.method) {
