@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart' as maplat;
 import '../../domain/geofence_mission.dart';
 
@@ -78,7 +77,7 @@ class PlaceModeOverlay extends StatelessWidget {
                         value: type,
                         isExpanded: true,
                         items: MissionType.values
-                            .map((t) => DropdownMenuItem(value: t, child: Text(describeEnum(t))))
+                          .map((t) => DropdownMenuItem(value: t, child: Text(t.name)))
                             .toList(),
                         onChanged: onTypeChanged,
                       ),

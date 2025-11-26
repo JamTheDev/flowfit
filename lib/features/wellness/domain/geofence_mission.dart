@@ -1,5 +1,5 @@
 
-import 'package:flutter/foundation.dart';
+// Kept minimal imports; enums and data classes used across the feature
 
 enum MissionType { target, sanctuary, safetyNet }
 
@@ -66,10 +66,10 @@ class GeofenceMission {
         'latitude': center.latitude,
         'longitude': center.longitude,
         'radius': radiusMeters,
-        'type': describeEnum(type),
+        'type': type.name,
         'isActive': isActive,
         'targetDistance': targetDistanceMeters,
-        'status': describeEnum(status),
+        'status': status.name,
       };
 
   factory GeofenceMission.fromJson(Map<String, dynamic> json) {
@@ -79,10 +79,10 @@ class GeofenceMission {
       description: json['description'] as String?,
       center: LatLngSimple((json['latitude'] as num).toDouble(), (json['longitude'] as num).toDouble()),
       radiusMeters: (json['radius'] as num?)?.toDouble() ?? 50.0,
-      type: MissionType.values.firstWhere((t) => describeEnum(t) == (json['type'] as String?), orElse: () => MissionType.sanctuary),
+      type: MissionType.values.firstWhere((t) => t.name == (json['type'] as String?), orElse: () => MissionType.sanctuary),
       isActive: (json['isActive'] as bool?) ?? false,
       targetDistanceMeters: (json['targetDistance'] as num?)?.toDouble(),
-      status: GeofenceStatus.values.firstWhere((s) => describeEnum(s) == (json['status'] as String?), orElse: () => GeofenceStatus.unknown),
+      status: GeofenceStatus.values.firstWhere((s) => s.name == (json['status'] as String?), orElse: () => GeofenceStatus.unknown),
     );
   }
 }

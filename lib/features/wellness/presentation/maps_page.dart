@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart' as fm;
@@ -14,6 +13,11 @@ import '../data/geofence_repository.dart';
 import '../services/geofence_service.dart';
 import 'widgets/place_mode_overlay.dart';
 import 'widgets/map_components.dart';
+import 'widgets/focus_mission_overlay.dart';
+import 'widgets/top_action_button.dart';
+import 'widgets/floating_actions.dart';
+import 'widgets/mission_bottom_sheet.dart';
+import 'widgets/edit_mission_dialog.dart';
 
 class WellnessMapsPage extends StatefulWidget {
   const WellnessMapsPage({super.key});
@@ -36,6 +40,12 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   double? _placingTargetDistance;
   // Title for place-mode is stored in `_placingTitleController.text`
   final TextEditingController _placingTitleController = TextEditingController();
+  // Focused mission state for 'start activity' mode
+  GeofenceMission? _focusedMission;
+  Timer? _focusTimer;
+  double _focusedDistanceMeters = 0.0;
+  Duration _focusedEta = Duration.zero;
+  double _focusSpeedMps = 1.4; // default walking speed
 
   GeofenceRepository _getRepo() {
     try {
@@ -62,8 +72,9 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   Future<void> _initLocation() async {
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
+      if (!mounted) return;
       setState(() {
         _initialCenter = maplat.LatLng(pos.latitude, pos.longitude);
       });
@@ -84,9 +95,8 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
         final m = repo.getById(event.missionId);
         if (m == null) return;
         final message = _buildEventMessage(m, event);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       });
     } catch (e) {
       // ignore
@@ -98,6 +108,7 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
     _mapController?.dispose();
     _eventsSub?.cancel();
     _placingTitleController.dispose();
+    _focusTimer?.cancel();
     super.dispose();
   }
 
@@ -160,11 +171,48 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
     );
     final repo = _getRepo();
     await repo.add(mission);
+    if (!mounted) return;
     setState(() {
       _isPlacingMission = false;
       _placingLatLng = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mission added')));
+  }
+
+  // Focus a mission in the UI and start periodic updates for ETA/distance
+  void _startFocusMission(GeofenceMission mission) {
+    _focusTimer?.cancel();
+    setState(() {
+      _focusedMission = mission;
+    });
+    _updateFocusMetrics();
+    _focusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _updateFocusMetrics());
+  }
+
+  void _stopFocusMission() {
+    _focusTimer?.cancel();
+    setState(() {
+      _focusedMission = null;
+      _focusedDistanceMeters = 0.0;
+      _focusedEta = Duration.zero;
+    });
+  }
+
+  Future<void> _updateFocusMetrics() async {
+    final m = _focusedMission;
+    if (m == null) return;
+    try {
+      final pos = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      final dist = maplat.Distance().as(maplat.LengthUnit.Meter, maplat.LatLng(pos.latitude, pos.longitude), maplat.LatLng(m.center.latitude, m.center.longitude));
+      final etaSec = (dist / _focusSpeedMps).round();
+      setState(() {
+        _focusedDistanceMeters = dist;
+        _focusedEta = Duration(seconds: etaSec);
+      });
+    } catch (e) {
+      // ignore
+    }
   }
 
   @override
@@ -232,6 +280,20 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
                     ],
                   ),
           ),
+          // Focus overlay when a mission is selected for navigation
+          if (_focusedMission != null)
+            FocusMissionOverlay(
+              mission: _focusedMission!,
+              distanceMeters: _focusedDistanceMeters,
+              eta: _focusedEta,
+              isActive: _focusedMission!.isActive,
+              speedMetersPerSecond: _focusSpeedMps,
+              onUnfocus: _stopFocusMission,
+              onCenter: () => _mapController?.move(maplat.LatLng(_focusedMission!.center.latitude, _focusedMission!.center.longitude), 16.0),
+              onActivate: () async => await _getService().activateMission(_focusedMission!.id),
+              onDeactivate: () async => await _getService().deactivateMission(_focusedMission!.id),
+              onSpeedChanged: (v) => setState(() { _focusSpeedMps = v; _updateFocusMetrics(); }),
+            ),
 
           // top overlay controls (back, import/export)
           SafeArea(
@@ -242,7 +304,7 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                      color: Theme.of(context).colorScheme.surface.withAlpha((0.8 * 255).toInt()),
                       borderRadius: BorderRadius.circular(12.0),
                     ),
                     child: IconButton(
@@ -252,7 +314,7 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
                   ),
                           Row(
                             children: [
-                              _TopActionButton(
+                              TopActionButton(
                                 icon: _missionsVisible ? Icons.close : Icons.list,
                                 onTap: () async => setState(() => _missionsVisible = !_missionsVisible),
                                 label: _missionsVisible ? 'Hide' : 'Show',
@@ -264,44 +326,10 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
             ),
           ),
 
-          // floating center button & add mission
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 70.0, right: 12.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FloatingActionButton.small(
-                      heroTag: 'center_location',
-                      onPressed: () async {
-                        final pos = await Geolocator.getCurrentPosition(
-                          desiredAccuracy: LocationAccuracy.high,
-                        );
-                        _mapController?.move(
-                          maplat.LatLng(pos.latitude, pos.longitude),
-                          16.0,
-                        );
-                      },
-                      child: const Icon(Icons.my_location),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'add_mission',
-                      onPressed: () async {
-                        // Add mission at center
-                        final center = _lastCenter;
-                        if (center != null) {
-                          await _addGeofenceAtLatLng(maplat.LatLng(center.latitude, center.longitude));
-                        }
-                      },
-                      child: const Icon(Icons.add),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          FloatingMapActions(
+            mapController: _mapController,
+            lastCenter: _lastCenter,
+            onAddAtLatLng: (lat) async => await _addGeofenceAtLatLng(lat),
           ),
 
           PlaceModeOverlay(
@@ -318,82 +346,13 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
 
           // Bottom sheet with missions (draggable)
           if (_missionsVisible)
-            DraggableScrollableSheet(
-            initialChildSize: 0.28,
-            minChildSize: 0.12,
-            maxChildSize: 0.85,
-            builder: (BuildContext context, ScrollController controller) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18.0),
-                    topRight: Radius.circular(18.0),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
-                      blurRadius: 8.0,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12.0),
-                    Container(
-                      width: 48.0,
-                      height: 6.0,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[400],
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                    ),
-                    const SizedBox(height: 8.0),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Missions', style: Theme.of(context).textTheme.titleLarge),
-                              Text('${repo.current.length} missions', style: Theme.of(context).textTheme.bodyMedium),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              TextButton.icon(
-                                onPressed: () async {
-                                  // TODO: Implement filters in future iterations
-                                },
-                                icon: const Icon(Icons.filter_list),
-                                label: const Text('Filter'),
-                              ),
-                              const SizedBox(width: 8.0),
-                              ElevatedButton.icon(
-                                onPressed: () async {
-                                  // Add mission at center as quick action
-                                  final center = _lastCenter;
-                                  if (center != null) {
-                                    await _addGeofenceAtLatLng(maplat.LatLng(center.latitude, center.longitude));
-                                  }
-                                },
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildMissionList(repo, service, controller),
-                    ),
-                  ],
-                ),
-              );
-            },
+            MissionBottomSheet(
+              repo: repo,
+              service: service,
+              mapController: _mapController,
+              lastCenter: _lastCenter,
+              onAddAtLatLng: (lat) async => await _addGeofenceAtLatLng(lat),
+              onOpenMission: (m) => _showMissionActions(m),
             ),
         ],
       ),
@@ -402,82 +361,7 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
 
   // Import and export functionality removed — no longer exposed in the UI.
 
-  Widget _buildMissionList(GeofenceRepository repo, GeofenceService service, ScrollController controller) {
-    if (repo.current.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18.0),
-          child: Text(
-            'No missions yet. Long-press on the map or tap Add to create a mission.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      controller: controller,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      itemCount: repo.current.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8.0),
-      itemBuilder: (context, index) {
-        final m = repo.current[index];
-        return Card(
-          elevation: 2.2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.0)),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-            title: Text(m.title, style: Theme.of(context).textTheme.titleMedium),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4.0),
-                Text('${describeEnum(m.type)} • ${m.radiusMeters.toStringAsFixed(0)} m'),
-                if (m.type == MissionType.target)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: LinearProgressIndicator(
-                      value: (m.targetDistanceMeters == null || m.targetDistanceMeters == 0)
-                          ? 0.0
-                          : (service.getProgress(m.id) /(m.targetDistanceMeters ?? 1.0)).clamp(0.0, 1.0),
-                    ),
-                  ),
-              ],
-            ),
-            trailing: SizedBox(
-              height: 56,
-              width: 56,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Transform.scale(
-                    scale: 0.9,
-                    child: Switch(
-                      value: m.isActive,
-                      onChanged: (v) => v ? service.activateMission(m.id) : service.deactivateMission(m.id),
-                    ),
-                  ),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                    iconSize: 18,
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async => await repo.delete(m.id),
-                  ),
-                ],
-              ),
-            ),
-            onTap: () async {
-              _mapController?.move(maplat.LatLng(m.center.latitude, m.center.longitude), 16.0);
-              _showMissionActions(m);
-            },
-          ),
-        );
-      },
-    );
-  }
+  // Mission list logic moved to MissionBottomSheet widget
 
   void _showMissionActions(GeofenceMission mission) {
     showModalBottomSheet(
@@ -495,19 +379,19 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
             ListTile(
               leading: const Icon(Icons.play_arrow),
               title: const Text('Activate'),
-              onTap: () async {
+              onTap: () {
                 final service = _getService();
-                await service.activateMission(mission.id);
-                Navigator.of(context).pop();
+                service.activateMission(mission.id);
+                if (mounted) Navigator.of(context).pop();
               },
             ),
             ListTile(
               leading: const Icon(Icons.stop),
               title: const Text('Deactivate'),
-              onTap: () async {
+              onTap: () {
                 final service = _getService();
-                await service.deactivateMission(mission.id);
-                Navigator.of(context).pop();
+                service.deactivateMission(mission.id);
+                if (mounted) Navigator.of(context).pop();
               },
             ),
             ListTile(
@@ -515,13 +399,21 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
               title: const Text('Edit'),
               onTap: () async {
                 final edited = await showDialog<GeofenceMission>(
-                  context: context,
-                  builder: (_) => _EditMissionDialog(mission: mission),
+                  context: ctx,
+                  builder: (_) => EditMissionDialog(mission: mission),
                 );
                 if (edited != null) {
-                  await _getRepo().update(edited);
+                  _getRepo().update(edited);
                 }
-                Navigator.of(context).pop();
+                if (mounted) Navigator.of(context).pop();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag),
+              title: const Text('Focus & Navigate'),
+              onTap: () async {
+                Navigator.of(ctx).pop();
+                _startFocusMission(mission);
               },
             ),
           ],
@@ -533,232 +425,8 @@ class _WellnessMapsPageState extends State<WellnessMapsPage> {
   }
 }
 
-class _AddMissionDialog extends StatefulWidget {
-  final maplat.LatLng latLng;
-  const _AddMissionDialog({required this.latLng});
+// Add and Edit dialog classes were refactored into separate widgets under
+// lib/features/wellness/presentation/widgets/*. Please use those widgets in
+// the UI and avoid duplicating dialog classes here.
 
-  @override
-  State<_AddMissionDialog> createState() => _AddMissionDialogState();
-}
-
-class _EditMissionDialog extends StatefulWidget {
-  final GeofenceMission mission;
-  const _EditMissionDialog({required this.mission});
-
-  @override
-  State<_EditMissionDialog> createState() => _EditMissionDialogState();
-}
-
-class _EditMissionDialogState extends State<_EditMissionDialog> {
-  late String _title;
-  String? _description;
-  late MissionType _type;
-  late double _radius;
-  double? _targetDistance;
-
-  @override
-  void initState() {
-    super.initState();
-    _title = widget.mission.title;
-    _description = widget.mission.description;
-    _type = widget.mission.type;
-    _radius = widget.mission.radiusMeters;
-    _targetDistance = widget.mission.targetDistanceMeters;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Mission'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: TextEditingController(text: _title),
-              decoration: const InputDecoration(labelText: 'Title'),
-              onChanged: (v) => setState(() => _title = v),
-            ),
-            TextField(
-              controller: TextEditingController(text: _description),
-              decoration: const InputDecoration(labelText: 'Description'),
-              onChanged: (v) => setState(() => _description = v),
-            ),
-            DropdownButton<MissionType>(
-              value: _type,
-              items: MissionType.values
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(describeEnum(t)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) =>
-                  setState(() => _type = v ?? MissionType.sanctuary),
-            ),
-            Row(
-              children: [
-                const Text('Radius (m)'),
-                Expanded(
-                  child: Slider(
-                    min: 10,
-                    max: 2000,
-                    value: _radius,
-                    onChanged: (v) => setState(() => _radius = v),
-                  ),
-                ),
-                Text('${_radius.toStringAsFixed(0)}'),
-              ],
-            ),
-            if (_type == MissionType.target)
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Target distance (m)',
-                ),
-                keyboardType: TextInputType.number,
-                controller: TextEditingController(
-                  text: _targetDistance?.toString(),
-                ),
-                onChanged: (v) =>
-                    setState(() => _targetDistance = double.tryParse(v)),
-              ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () {
-            final updated = widget.mission.copyWith(
-              title: _title,
-              description: _description,
-              radiusMeters: _radius,
-              type: _type,
-              targetDistanceMeters: _targetDistance,
-            );
-            Navigator.of(context).pop(updated);
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    );
-  }
-}
-
-class _AddMissionDialogState extends State<_AddMissionDialog> {
-  String _title = '';
-  String? _description;
-  MissionType _type = MissionType.sanctuary;
-  double _radius = 50.0;
-  double? _targetDistance;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Mission'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Title'),
-              onChanged: (v) => setState(() => _title = v),
-            ),
-            TextField(
-              decoration: const InputDecoration(labelText: 'Description'),
-              onChanged: (v) => setState(() => _description = v),
-            ),
-            DropdownButton<MissionType>(
-              value: _type,
-              items: MissionType.values
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(describeEnum(t)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) =>
-                  setState(() => _type = v ?? MissionType.sanctuary),
-            ),
-            Row(
-              children: [
-                const Text('Radius (m)'),
-                Expanded(
-                  child: Slider(
-                    min: 10,
-                    max: 1000,
-                    value: _radius,
-                    onChanged: (v) => setState(() => _radius = v),
-                  ),
-                ),
-                Text('${_radius.toStringAsFixed(0)}'),
-              ],
-            ),
-            if (_type == MissionType.target)
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Target distance (m)',
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (v) =>
-                    setState(() => _targetDistance = double.tryParse(v)),
-              ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () {
-            final id = DateTime.now().millisecondsSinceEpoch.toString();
-            final mission = GeofenceMission(
-              id: id,
-              title: _title.isEmpty ? 'Mission $id' : _title,
-              description: _description,
-              center: LatLngSimple(
-                widget.latLng.latitude,
-                widget.latLng.longitude,
-              ),
-              radiusMeters: _radius,
-              type: _type,
-              targetDistanceMeters: _targetDistance,
-            );
-            Navigator.of(context).pop(mission);
-          },
-          child: const Text('Add'),
-        ),
-      ],
-    );
-  }
-}
-
-class _TopActionButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  final String label;
-  const _TopActionButton({required this.icon, required this.onTap, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: IconButton(
-        icon: Icon(icon),
-        onPressed: onTap,
-        tooltip: label,
-      ),
-    );
-  }
-}
+// TopActionButton moved to widgets/top_action_button.dart
