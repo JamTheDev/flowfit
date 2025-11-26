@@ -30,8 +30,8 @@ class MapsPageWrapper extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: repo),
-        ChangeNotifierProvider.value(value: service),
+        ChangeNotifierProvider<GeofenceRepository>.value(value: repo),
+        ChangeNotifierProvider<GeofenceService>.value(value: service),
       ],
       child: const WellnessMapsPage(),
     );
@@ -40,5 +40,5 @@ class MapsPageWrapper extends StatelessWidget {
 
 // How to use:
 // - Add `MapsPageWrapper()` to your application's routing for `wellness` category.
-// - Ensure google_maps_flutter has been configured with platform API keys.
+// - This feature uses `flutter_map` + OpenStreetMap tiles by default — no API keys required.
 // - Optionally, replace `InMemoryGeofenceRepository` with a persisted implementation.

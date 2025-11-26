@@ -3,6 +3,7 @@ import 'package:flowfit/features/activity_classifier/domain/classify_activity_us
 import 'package:flowfit/features/activity_classifier/platform/tflite_activity_classifier.dart';
 import 'package:flowfit/features/activity_classifier/platform/heart_bpm_adapter.dart';
 import 'package:flowfit/features/activity_classifier/presentation/tracker_page.dart';
+import 'package:flowfit/features/wellness/presentation/maps_page_wrapper.dart';
 import 'package:flowfit/services/phone_data_listener.dart';
 import 'package:flowfit/features/activity_classifier/presentation/providers.dart';
 import 'package:flutter/material.dart';
@@ -94,6 +95,7 @@ class FlowFitPhoneApp extends StatelessWidget {
           '/onboarding1': (context) => const OnboardingScreen(),
           '/dashboard': (context) => const DashboardScreen(),
           '/trackertest': (context) => const TrackerPage(),
+          '/mission': (context) => const MapsPageWrapper(),
           '/home': (context) => const PhoneHomePage(),
           '/phone_heart_rate': (context) => const PhoneHeartRateScreen(),
         },

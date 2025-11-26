@@ -263,7 +263,7 @@ class HomeTab extends StatelessWidget {
                     ),
                     GestureDetector(
                       onTap: () {
-                        // Log Sleep
+                        Navigator.pushNamed(context, "/mission");
                       },
                       child: _buildQuickTrackCard(
                         context,
