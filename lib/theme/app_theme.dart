@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// FlowFit App Theme
+///
+/// NOTE: This project uses a custom font family "GeneralSans" in the ThemeData.
+/// To use a custom font you must add the font files under `assets/fonts/GeneralSans/`
+/// and register them in `pubspec.yaml` (see `docs/ADD_CUSTOM_FONTS.md`).
 /// Based on FlowFit Style Guide:
 /// - Font: General Sans
 /// - Icons: Iconify/Solar
@@ -15,7 +19,7 @@ class AppTheme {
   static const Color white = Color(0xFFFFFFFF);
   static const Color lightGray = Color(0xFFF5F5F5);
   static const Color darkGray = Color(0xFF6B7280);
-  
+
   // Light Theme
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
@@ -32,7 +36,10 @@ class AppTheme {
       onSurface: black,
       onBackground: black,
     ),
+    // fontFamily uses the 'family' value you register in `pubspec.yaml` fonts.
+    // Example registration is shown in docs/ADD_CUSTOM_FONTS.md and pubspec.yaml
     fontFamily: 'GeneralSans',
+    fontFamilyFallback: const ['Roboto', 'Noto Sans'],
     textTheme: const TextTheme(
       displayLarge: TextStyle(
         fontSize: 57,
@@ -112,9 +119,7 @@ class AppTheme {
     ),
     cardTheme: CardThemeData(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: white,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -123,9 +128,7 @@ class AppTheme {
         foregroundColor: white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
@@ -138,9 +141,7 @@ class AppTheme {
         foregroundColor: primaryBlue,
         side: const BorderSide(color: primaryBlue, width: 2),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
@@ -183,10 +184,7 @@ class AppTheme {
         borderSide: BorderSide(color: Colors.red.shade600, width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      hintStyle: TextStyle(
-        color: darkGray.withOpacity(0.6),
-        fontSize: 14,
-      ),
+      hintStyle: TextStyle(color: darkGray.withOpacity(0.6), fontSize: 14),
       labelStyle: const TextStyle(
         color: darkGray,
         fontSize: 14,
@@ -194,7 +192,7 @@ class AppTheme {
       ),
     ),
   );
-  
+
   // Dark Theme
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
@@ -212,6 +210,7 @@ class AppTheme {
       onBackground: white,
     ),
     fontFamily: 'GeneralSans',
+    fontFamilyFallback: const ['Roboto', 'Noto Sans'],
     textTheme: const TextTheme(
       displayLarge: TextStyle(
         fontSize: 57,
@@ -288,9 +287,7 @@ class AppTheme {
     ),
     cardTheme: CardThemeData(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: const Color(0xFF1F1F1F),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -299,9 +296,7 @@ class AppTheme {
         foregroundColor: white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
