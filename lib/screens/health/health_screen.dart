@@ -3,8 +3,42 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../widgets/page_header.dart';
 
 // Health Screen
-class HealthScreen extends StatelessWidget {
+class HealthScreen extends StatefulWidget {
   const HealthScreen({super.key});
+
+  @override
+  State<HealthScreen> createState() => _HealthScreenState();
+}
+
+class _HealthScreenState extends State<HealthScreen> {
+  // State variables
+  double _waterIntake = 1.5;
+  final double _waterGoal = 2.0;
+  String _selectedMealTab = 'Breakfast';
+
+  // Mock data for food items
+  final Map<String, List<Map<String, String>>> _foodItems = {
+    'Breakfast': [
+      {'name': 'Oatmeal with Berries', 'calories': '350 kcal'},
+      {'name': 'Black Coffee', 'calories': '5 kcal'},
+    ],
+    'Lunch': [
+      {'name': 'Grilled Chicken Salad', 'calories': '450 kcal'},
+      {'name': 'Apple', 'calories': '80 kcal'},
+    ],
+    'Dinner': [
+      {'name': 'Salmon with Veggies', 'calories': '550 kcal'},
+    ],
+    'Snacks': [
+      {'name': 'Almonds', 'calories': '160 kcal'},
+    ],
+  };
+
+  void _updateWater(double amount) {
+    setState(() {
+      _waterIntake = (_waterIntake + amount).clamp(0.0, _waterGoal * 2);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +48,53 @@ class HealthScreen extends StatelessWidget {
       backgroundColor: theme.colorScheme.background,
       body: Column(
         children: [
-          const PageHeader(title: 'Daily Log', subtitle: 'Today, November 25'),
+          // Custom Header
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 18),
+                        onPressed: () {},
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(40, 40),
+                        ),
+                      ),
+                      Text(
+                        'Today, November 25',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                        onPressed: () {},
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(40, 40),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Daily Log',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onBackground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -128,13 +208,13 @@ class HealthScreen extends StatelessWidget {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                _buildMealTab(context, 'Breakfast', true),
+                                _buildMealTab(context, 'Breakfast'),
                                 const SizedBox(width: 8),
-                                _buildMealTab(context, 'Lunch', false),
+                                _buildMealTab(context, 'Lunch'),
                                 const SizedBox(width: 8),
-                                _buildMealTab(context, 'Dinner', false),
+                                _buildMealTab(context, 'Dinner'),
                                 const SizedBox(width: 8),
-                                _buildMealTab(context, 'Snacks', false),
+                                _buildMealTab(context, 'Snacks'),
                               ],
                             ),
                           ),
@@ -142,13 +222,16 @@ class HealthScreen extends StatelessWidget {
                           const SizedBox(height: 20),
 
                           // Food Items
-                          _buildFoodItem(
-                            context,
-                            'Oatmeal with Berries',
-                            '350 kcal',
+                          ...(_foodItems[_selectedMealTab] ?? []).map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildFoodItem(
+                                context,
+                                item['name']!,
+                                item['calories']!,
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          _buildFoodItem(context, 'Black Coffee', '5 kcal'),
                         ],
                       ),
                     ),
@@ -202,7 +285,7 @@ class HealthScreen extends StatelessWidget {
                                 ],
                               ),
                               Text(
-                                '1.5 / 2.0 L',
+                                '${_waterIntake.toStringAsFixed(1)} / ${_waterGoal.toStringAsFixed(1)} L',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -224,7 +307,10 @@ class HealthScreen extends StatelessWidget {
                                     width: 160,
                                     height: 160,
                                     child: CircularProgressIndicator(
-                                      value: 0.75,
+                                      value: (_waterIntake / _waterGoal).clamp(
+                                        0.0,
+                                        1.0,
+                                      ),
                                       strokeWidth: 14,
                                       backgroundColor: theme
                                           .colorScheme
@@ -240,7 +326,7 @@ class HealthScreen extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        '75%',
+                                        '${((_waterIntake / _waterGoal) * 100).toInt()}%',
                                         style: theme.textTheme.displaySmall
                                             ?.copyWith(
                                               fontWeight: FontWeight.bold,
@@ -271,9 +357,13 @@ class HealthScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildWaterButton(context, '-'),
+                              _buildWaterButton(context, '-', () {
+                                _updateWater(-0.25);
+                              }),
                               const SizedBox(width: 40),
-                              _buildWaterButton(context, '+'),
+                              _buildWaterButton(context, '+', () {
+                                _updateWater(0.25);
+                              }),
                             ],
                           ),
                         ],
@@ -452,21 +542,29 @@ class HealthScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMealTab(BuildContext context, String label, bool isSelected) {
+  Widget _buildMealTab(BuildContext context, String label) {
     final theme = Theme.of(context);
+    final isSelected = _selectedMealTab == label;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? theme.colorScheme.surfaceVariant
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedMealTab = label;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.surfaceVariant
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
       ),
     );
@@ -505,11 +603,20 @@ class HealthScreen extends StatelessWidget {
             ],
           ),
         ),
+        IconButton(
+          icon: const Icon(Icons.more_vert, size: 20),
+          onPressed: () {},
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ],
     );
   }
 
-  Widget _buildWaterButton(BuildContext context, String label) {
+  Widget _buildWaterButton(
+    BuildContext context,
+    String label,
+    VoidCallback onPressed,
+  ) {
     final theme = Theme.of(context);
 
     return Container(
@@ -527,7 +634,7 @@ class HealthScreen extends StatelessWidget {
             color: Colors.cyan,
           ),
         ),
-        onPressed: () {},
+        onPressed: onPressed,
       ),
     );
   }
