@@ -38,6 +38,7 @@ import 'screens/workout/workout_type_selection_screen.dart';
 import 'screens/workout/running/running_setup_screen.dart';
 import 'screens/workout/running/active_running_screen.dart';
 import 'screens/workout/running/running_summary_screen.dart';
+import 'screens/workout/running/share_achievement_screen.dart';
 import 'screens/workout/walking/walking_options_screen.dart';
 import 'screens/workout/walking/mission_creation_screen.dart';
 import 'screens/workout/walking/active_walking_screen.dart';
@@ -175,6 +176,11 @@ class FlowFitPhoneApp extends StatelessWidget {
           '/workout/running/setup': (context) => const RunningSetupScreen(),
           '/workout/running/active': (context) => const ActiveRunningScreen(),
           '/workout/running/summary': (context) => const RunningSummaryScreen(),
+          '/workout/running/share': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+            final session = args?['session'];
+            return ShareAchievementScreen(session: session);
+          },
           '/workout/walking/options': (context) => const WalkingOptionsScreen(),
           '/workout/walking/mission': (context) => const MissionCreationScreen(missionType: MissionType.target),
           '/workout/walking/active': (context) => const ActiveWalkingScreen(),

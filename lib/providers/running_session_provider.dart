@@ -10,6 +10,8 @@ import '../services/timer_service.dart';
 import '../services/heart_rate_service.dart';
 import '../services/calorie_calculator_service.dart';
 import '../services/workout_session_service.dart';
+import '../services/phone_step_counter_service.dart';
+import '../services/phone_data_listener.dart';
 
 /// Provider for GPS tracking service
 final gpsTrackingServiceProvider = Provider((ref) => GPSTrackingService());
@@ -26,6 +28,14 @@ final calorieCalculatorServiceProvider = Provider((ref) => CalorieCalculatorServ
 /// Provider for workout session service
 final workoutSessionServiceProvider = Provider((ref) => WorkoutSessionService());
 
+/// Provider for phone data listener (for smartwatch data)
+final phoneDataListenerProvider = Provider((ref) => PhoneDataListener());
+
+/// Provider for phone step counter service (uses phone's accelerometer)
+final phoneStepCounterServiceProvider = Provider<PhoneStepCounterService>((ref) {
+  return PhoneStepCounterService();
+});
+
 /// Provider for managing running workout sessions
 class RunningSessionNotifier extends StateNotifier<RunningSession?> {
   final GPSTrackingService _gpsService;
@@ -33,10 +43,13 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
   final HeartRateService _hrService;
   final CalorieCalculatorService _calorieService;
   final WorkoutSessionService _sessionService;
+  final PhoneStepCounterService _phoneStepCounterService;
+  final PhoneDataListener _phoneDataListener;
 
   StreamSubscription<LatLng>? _gpsSubscription;
   StreamSubscription<int>? _timerSubscription;
-  StreamSubscription<int>? _hrSubscription;
+  StreamSubscription? _hrSubscription;
+  StreamSubscription<int>? _stepSubscription;
   Timer? _metricsUpdateTimer;
 
   RunningSessionNotifier({
@@ -45,11 +58,15 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     required HeartRateService hrService,
     required CalorieCalculatorService calorieService,
     required WorkoutSessionService sessionService,
+    required PhoneStepCounterService phoneStepCounterService,
+    required PhoneDataListener phoneDataListener,
   })  : _gpsService = gpsService,
         _timerService = timerService,
         _hrService = hrService,
         _calorieService = calorieService,
         _sessionService = sessionService,
+        _phoneStepCounterService = phoneStepCounterService,
+        _phoneDataListener = phoneDataListener,
         super(null);
 
   /// Starts a new running session
@@ -73,32 +90,58 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
 
     // Start services
     await _gpsService.startTracking();
-    _timerService.start();
+    _timerService.start(); // Timer starts from 0
     await _hrService.startMonitoring();
+    
+    // Start phone step counter using phone's accelerometer
+    try {
+      await _phoneStepCounterService.startCounting();
+      _phoneStepCounterService.resetSteps(); // Reset steps to 0 at start
+    } catch (e) {
+      print('⚠️ Phone step counter not available: $e');
+    }
 
-    // Subscribe to GPS updates
+    // Subscribe to GPS updates for real distance tracking
     _gpsSubscription = _gpsService.locationStream.listen((location) {
       _updateLocation(location);
     });
 
-    // Subscribe to timer updates
+    // Subscribe to timer updates for real duration
     _timerSubscription = _timerService.timerStream.listen((seconds) {
       _updateDuration(seconds);
     });
 
-    // Subscribe to heart rate updates
-    _hrSubscription = _hrService.heartRateStream.listen((hr) {
-      _updateHeartRate(hr);
+    // Subscribe to heart rate updates from smartwatch via PhoneDataListener
+    _hrSubscription = _phoneDataListener.heartRateStream.listen((hrData) {
+      // Update heart rate service with real BPM data from watch
+      final bpm = hrData.bpm;
+      if (bpm != null) {
+        _hrService.updateHeartRate(bpm);
+        // Update session state
+        _updateHeartRate(bpm);
+      }
     });
 
-    // Update metrics every second
+    // Subscribe to phone step counter updates
+    try {
+      _stepSubscription = _phoneStepCounterService.stepStream.listen((steps) {
+        print('👟 RunningSession: Received step update from phone: $steps');
+        _updateSteps(steps);
+      });
+      print('✅ RunningSession: Subscribed to phone step counter stream');
+    } catch (e) {
+      print('⚠️ Phone step counter stream not available: $e');
+    }
+
+    // Update metrics every second for real-time calorie calculation
     _metricsUpdateTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => _updateMetrics(),
     );
 
     // Save initial session to database
-    await _sessionService.createSession(session);
+    // TODO: Re-enable when backend is ready
+    // await _sessionService.createSession(session);
   }
 
   /// Updates location and route
@@ -121,7 +164,7 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     state = state!.copyWith(durationSeconds: seconds);
   }
 
-  /// Updates heart rate
+  /// Updates heart rate from smartwatch
   void _updateHeartRate(int hr) {
     if (state == null) return;
 
@@ -132,22 +175,32 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     );
   }
 
-  /// Updates all metrics (pace, calories)
+  /// Updates step count from Android native layer
+  void _updateSteps(int steps) {
+    if (state == null) return;
+
+    print('👟 RunningSession: Updating steps to $steps');
+    state = state!.copyWith(
+      steps: steps,
+    );
+  }
+
+  /// Updates all metrics (pace, calories) with real data
   void _updateMetrics() {
     if (state == null) return;
 
-    // Calculate pace
+    // Calculate real pace from actual distance and duration
     final durationMinutes = (state!.durationSeconds ?? 0) / 60.0;
     final pace = state!.currentDistance > 0
         ? durationMinutes / state!.currentDistance
         : null;
 
-    // Calculate calories
+    // Calculate real calories using actual distance, duration, and heart rate
     final calories = _calorieService.calculateCalories(
       workoutType: WorkoutType.running,
       durationMinutes: durationMinutes.round(),
-      distanceKm: state!.currentDistance,
-      avgHeartRate: state!.avgHeartRate,
+      distanceKm: state!.currentDistance, // Real GPS distance
+      avgHeartRate: state!.avgHeartRate, // Real smartwatch BPM
     );
 
     state = state!.copyWith(
@@ -163,6 +216,14 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     _timerService.pause();
     _gpsService.stopTracking();
     _hrService.stopMonitoring();
+    
+    // Stop phone step counter if available
+    try {
+      _phoneStepCounterService.stopCounting();
+    } catch (e) {
+      print('⚠️ Could not stop phone step counter: $e');
+    }
+    
     _metricsUpdateTimer?.cancel();
 
     state = state!.copyWith(status: WorkoutStatus.paused);
@@ -175,6 +236,13 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     _timerService.resume();
     await _gpsService.startTracking();
     await _hrService.startMonitoring();
+    
+    // Resume phone step counter if available
+    try {
+      await _phoneStepCounterService.startCounting();
+    } catch (e) {
+      print('⚠️ Could not resume phone step counter: $e');
+    }
 
     _metricsUpdateTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -191,6 +259,14 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     _timerService.stop();
     await _gpsService.stopTracking();
     await _hrService.stopMonitoring();
+    
+    // Stop phone step counter if available
+    try {
+      await _phoneStepCounterService.stopCounting();
+    } catch (e) {
+      print('⚠️ Could not stop phone step counter: $e');
+    }
+    
     _metricsUpdateTimer?.cancel();
 
     final moodChange = postMood != null && state!.preMood != null
@@ -205,7 +281,11 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     );
 
     // Save final session to database
-    await _sessionService.saveSession(state!);
+    // TODO: Re-enable when backend is ready
+    // await _sessionService.saveSession(state!);
+    
+    // Reset timer for next session
+    _timerService.reset();
   }
 
   @override
@@ -213,10 +293,19 @@ class RunningSessionNotifier extends StateNotifier<RunningSession?> {
     _gpsSubscription?.cancel();
     _timerSubscription?.cancel();
     _hrSubscription?.cancel();
+    _stepSubscription?.cancel();
     _metricsUpdateTimer?.cancel();
     _gpsService.dispose();
     _timerService.dispose();
     _hrService.dispose();
+    
+    // Dispose phone step counter if available
+    try {
+      _phoneStepCounterService.dispose();
+    } catch (e) {
+      print('⚠️ Could not dispose phone step counter: $e');
+    }
+    
     super.dispose();
   }
 }
@@ -229,5 +318,7 @@ final runningSessionProvider = StateNotifierProvider<RunningSessionNotifier, Run
     hrService: ref.watch(heartRateServiceProvider),
     calorieService: ref.watch(calorieCalculatorServiceProvider),
     sessionService: ref.watch(workoutSessionServiceProvider),
+    phoneStepCounterService: ref.watch(phoneStepCounterServiceProvider),
+    phoneDataListener: ref.watch(phoneDataListenerProvider),
   ),
 );

@@ -59,6 +59,7 @@ dependencies:
   http: ^1.2.2 # For OpenRouteService API calls
   flutter_cache_manager: ^3.4.1 # For caching map tiles
   share_plus: ^10.1.2 # For sharing workout achievements
+  image_picker: ^1.1.2 # For selecting background images for share cards
 
 flutter:
   assets:

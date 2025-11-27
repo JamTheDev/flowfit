@@ -34,21 +34,15 @@ class HeartRateService {
   /// Heart rate zones (zone name -> seconds spent)
   Map<String, int> get heartRateZones => Map.from(_heartRateZones);
 
-  /// Starts heart rate monitoring
+  /// Starts heart rate monitoring from smartwatch
   Future<void> startMonitoring() async {
-    // TODO: Integrate with actual heart rate sensor
-    // For now, this is a placeholder that would connect to:
-    // - Wear OS heart rate sensor
-    // - Bluetooth heart rate monitor
-    // - Health Connect API
+    // Note: Heart rate data comes from PhoneDataListener
+    // The running session provider should listen to PhoneDataListener.heartRateStream
+    // and call _updateHeartRate() with the real BPM values
     
-    // Simulated heart rate updates every second
-    _hrSubscription = Stream.periodic(
-      const Duration(seconds: 1),
-      (count) => 70 + (count % 30), // Simulated HR between 70-100
-    ).listen((hr) {
-      _updateHeartRate(hr);
-    });
+    // This service now acts as a data holder and calculator
+    // Real heart rate updates come from the watch via PhoneDataListener
+    print('💓 HeartRateService: Ready to receive heart rate data from smartwatch');
   }
 
   /// Stops heart rate monitoring
@@ -57,8 +51,8 @@ class HeartRateService {
     _hrSubscription = null;
   }
 
-  /// Updates heart rate and calculates zones
-  void _updateHeartRate(int heartRate) {
+  /// Updates heart rate and calculates zones (called from external sources like PhoneDataListener)
+  void updateHeartRate(int heartRate) {
     _currentHeartRate = heartRate;
     _heartRateHistory.add(heartRate);
     

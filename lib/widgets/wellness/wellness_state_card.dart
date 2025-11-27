@@ -32,6 +32,16 @@ class _WellnessStateCardState extends State<WellnessStateCard> with SingleTicker
   }
 
   @override
+  void didUpdateWidget(WellnessStateCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Force rebuild when state changes (especially heart rate)
+    if (oldWidget.state.heartRate != widget.state.heartRate ||
+        oldWidget.state.state != widget.state.state) {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
     _pulseController.dispose();
     super.dispose();

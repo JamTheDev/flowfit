@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:solar_icons/solar_icons.dart';
 import '../../../providers/running_session_provider.dart';
 import '../../../models/workout_session.dart';
 
@@ -20,11 +21,11 @@ class ActiveRunningScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveRunningScreenState extends ConsumerState<ActiveRunningScreen> {
-  final MapController _mapController = MapController();
+  MapController? _mapController;
 
   @override
   void dispose() {
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -58,11 +59,17 @@ class _ActiveRunningScreenState extends ConsumerState<ActiveRunningScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              // Navigate to post-mood check
-              // TODO: Implement navigation to post-mood check
-              Navigator.of(context).pushReplacementNamed('/workout/running/summary');
+              
+              // End the session properly
+              final notifier = ref.read(runningSessionProvider.notifier);
+              await notifier.endSession();
+              
+              // Navigate to summary
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/workout/running/summary');
+              }
             },
             child: const Text('End Workout'),
           ),
@@ -91,39 +98,43 @@ class _ActiveRunningScreenState extends ConsumerState<ActiveRunningScreen> {
         : null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F6FD),
+      backgroundColor: Colors.black,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // Header with status, timer, and controls
-            _buildHeader(theme, session, isPaused),
+            // Full-screen map as background
+            _buildFullScreenMap(session, currentLocation),
             
-            // Main content area
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Primary metric: Distance
-                    _buildPrimaryMetric(theme, session),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Secondary metrics grid
-                    _buildMetricsGrid(theme, session),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Progress bar
-                    _buildProgressBar(theme, session),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Map
-                    _buildMap(session, currentLocation),
-                  ],
+            // Gradient overlay for better readability
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.6),
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.8),
+                    ],
+                    stops: const [0.0, 0.2, 0.6, 1.0],
+                  ),
                 ),
               ),
+            ),
+            
+            // Content overlay
+            Column(
+              children: [
+                // Header with controls
+                _buildHeader(theme, session, isPaused),
+                
+                const Spacer(),
+                
+                // Bottom metrics panel
+                _buildBottomMetricsPanel(theme, session),
+              ],
             ),
           ],
         ),
@@ -132,79 +143,62 @@ class _ActiveRunningScreenState extends ConsumerState<ActiveRunningScreen> {
   }
 
   Widget _buildHeader(ThemeData theme, dynamic session, bool isPaused) {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: Row(
         children: [
+          // Back button
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(SolarIconsOutline.altArrowLeft, color: Colors.white),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.2),
+              minimumSize: const Size(44, 44),
+            ),
+          ),
+          
+          const Spacer(),
+          
           // Status badge
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: isPaused 
-                  ? Colors.orange.withOpacity(0.1)
-                  : Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+                  ? Colors.orange.withOpacity(0.9)
+                  : Colors.green.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(
-              isPaused ? 'PAUSED' : 'ACTIVE',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: isPaused ? Colors.orange : Colors.green,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isPaused ? SolarIconsBold.pauseCircle : SolarIconsBold.playCircle,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isPaused ? 'PAUSED' : 'RUNNING',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
           
-          const SizedBox(width: 16),
+          const Spacer(),
           
-          // Timer
-          Expanded(
-            child: Text(
-              _formatTime(session.durationSeconds),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Pause/Resume button
+          // Menu button
           IconButton(
-            onPressed: () {
-              if (isPaused) {
-                ref.read(runningSessionProvider.notifier).resumeSession();
-              } else {
-                ref.read(runningSessionProvider.notifier).pauseSession();
-              }
-            },
-            icon: Icon(isPaused ? Icons.play_arrow : Icons.pause),
+            onPressed: () {},
+            icon: const Icon(SolarIconsOutline.menuDots, color: Colors.white),
             style: IconButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              minimumSize: const Size(48, 48),
-            ),
-          ),
-          
-          const SizedBox(width: 8),
-          
-          // End button
-          IconButton(
-            onPressed: _showEndWorkoutDialog,
-            icon: const Icon(Icons.stop),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.red.withOpacity(0.1),
-              foregroundColor: Colors.red,
-              minimumSize: const Size(48, 48),
+              backgroundColor: Colors.white.withOpacity(0.2),
+              minimumSize: const Size(44, 44),
             ),
           ),
         ],
@@ -212,244 +206,325 @@ class _ActiveRunningScreenState extends ConsumerState<ActiveRunningScreen> {
     );
   }
 
-  Widget _buildPrimaryMetric(ThemeData theme, dynamic session) {
+
+
+  Widget _buildFullScreenMap(dynamic session, LatLng? currentLocation) {
+    return session.routePoints.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  SolarIconsBold.mapPoint,
+                  size: 64,
+                  color: Colors.white.withOpacity(0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Waiting for GPS signal...',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : FlutterMap(
+            mapController: _mapController ??= MapController(),
+            options: MapOptions(
+              initialCenter: currentLocation ?? const LatLng(0, 0),
+              initialZoom: 16,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.flowfit.app',
+              ),
+              // Route polyline
+              if (session.routePoints.length > 1)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: session.routePoints,
+                      strokeWidth: 5,
+                      color: const Color(0xFF3B82F6),
+                      borderStrokeWidth: 2,
+                      borderColor: Colors.white,
+                    ),
+                  ],
+                ),
+              // Current location marker
+              if (currentLocation != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: currentLocation,
+                      width: 24,
+                      height: 24,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          );
+  }
+
+  Widget _buildBottomMetricsPanel(ThemeData theme, dynamic session) {
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      padding: const EdgeInsets.all(20),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Distance',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: Colors.grey[600],
-            ),
+          // Primary metrics row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildLargeMetric(
+                'Distance',
+                '${_formatDistance(session.currentDistance)}',
+                'km',
+                SolarIconsBold.mapArrowSquare,
+                const Color(0xFF3B82F6),
+              ),
+              Container(
+                width: 1,
+                height: 60,
+                color: Colors.grey[300],
+              ),
+              _buildLargeMetric(
+                'Duration',
+                _formatTime(session.durationSeconds),
+                '',
+                SolarIconsBold.clockCircle,
+                Colors.orange,
+              ),
+              Container(
+                width: 1,
+                height: 60,
+                color: Colors.grey[300],
+              ),
+              _buildLargeMetric(
+                'Pace',
+                _formatPace(session.avgPace),
+                '/km',
+                SolarIconsBold.chartSquare,
+                Colors.green,
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            '${_formatDistance(session.currentDistance)} km',
-            style: theme.textTheme.headlineLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
+          
+          const SizedBox(height: 20),
+          
+          // Secondary metrics row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildSmallMetric(
+                'Heart Rate',
+                session.avgHeartRate != null ? '${session.avgHeartRate}' : '--',
+                'bpm',
+                SolarIconsBold.heartPulse,
+                Colors.red,
+              ),
+              _buildSmallMetric(
+                'Calories',
+                session.caloriesBurned != null ? '${session.caloriesBurned}' : '--',
+                'cal',
+                SolarIconsBold.fire,
+                Colors.orange,
+              ),
+              _buildSmallMetric(
+                'Steps',
+                session.steps != null ? '${session.steps}' : '--',
+                'steps',
+                SolarIconsBold.walking,
+                const Color(0xFF3B82F6),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Control buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final isPaused = session.status == WorkoutStatus.paused;
+                    if (isPaused) {
+                      ref.read(runningSessionProvider.notifier).resumeSession();
+                    } else {
+                      ref.read(runningSessionProvider.notifier).pauseSession();
+                    }
+                  },
+                  icon: Icon(
+                    session.status == WorkoutStatus.paused 
+                        ? SolarIconsBold.play 
+                        : SolarIconsBold.pause,
+                  ),
+                  label: Text(
+                    session.status == WorkoutStatus.paused ? 'Resume' : 'Pause',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _showEndWorkoutDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Icon(SolarIconsBold.stopCircle, size: 24),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricsGrid(ThemeData theme, dynamic session) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.5,
+  Widget _buildLargeMetric(
+    String label,
+    String value,
+    String unit,
+    IconData icon,
+    Color color,
+  ) {
+    return Column(
       children: [
-        _buildMetricCard(
-          theme,
-          'Duration',
-          _formatTime(session.durationSeconds),
-          Icons.timer_outlined,
+        Icon(icon, size: 24, color: color),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            if (unit.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 2, bottom: 4),
+                child: Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
         ),
-        _buildMetricCard(
-          theme,
-          'Pace',
-          '${_formatPace(session.avgPace)} /km',
-          Icons.speed,
-        ),
-        _buildMetricCard(
-          theme,
-          'Heart Rate',
-          session.avgHeartRate != null 
-              ? '${session.avgHeartRate} bpm'
-              : '--',
-          Icons.favorite_outline,
-        ),
-        _buildMetricCard(
-          theme,
-          'Calories',
-          session.caloriesBurned != null 
-              ? '${session.caloriesBurned} cal'
-              : '--',
-          Icons.local_fire_department_outlined,
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMetricCard(
-    ThemeData theme,
+  Widget _buildSmallMetric(
     String label,
     String value,
+    String unit,
     IconData icon,
+    Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 24,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBar(ThemeData theme, dynamic session) {
-    final progress = session.progressPercentage;
-    final progressPercent = (progress * 100).toInt();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Progress',
-                style: theme.textTheme.titleSmall?.copyWith(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Colors.grey[900],
                 ),
               ),
+              const SizedBox(width: 2),
               Text(
-                '$progressPercent%',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
+                unit,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                theme.colorScheme.primary,
-              ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[600],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMap(dynamic session, LatLng? currentLocation) {
-    return Container(
-      height: 300,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: session.routePoints.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.map_outlined,
-                    size: 48,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Waiting for GPS signal...',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            )
-          : FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: currentLocation ?? const LatLng(0, 0),
-                initialZoom: 15,
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-                ),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.flowfit.app',
-                ),
-                // Route polyline
-                if (session.routePoints.length > 1)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: session.routePoints,
-                        strokeWidth: 4,
-                        color: const Color(0xFF3B82F6),
-                      ),
-                    ],
-                  ),
-                // Current location marker
-                if (currentLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: currentLocation,
-                        width: 20,
-                        height: 20,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 3,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
     );
   }
 }

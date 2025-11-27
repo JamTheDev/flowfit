@@ -93,19 +93,25 @@ class _RunningSummaryScreenState extends ConsumerState<RunningSummaryScreen> {
     try {
       final session = ref.read(runningSessionProvider);
       if (session != null) {
-        await ref.read(workoutSessionServiceProvider).saveSession(session);
-      }
+        // TODO: Re-enable when backend is ready
+        // await ref.read(workoutSessionServiceProvider).saveSession(session);
+        
+        // For now, just show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Workout saved! (Backend disabled for now)'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Workout saved to history!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate back to Track Tab
-        Navigator.of(context).popUntil((route) => route.isFirst);
+          // Navigate back to dashboard (Track Tab)
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/dashboard',
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -124,23 +130,11 @@ class _RunningSummaryScreenState extends ConsumerState<RunningSummaryScreen> {
   }
 
   Future<void> _shareAchievement() async {
-    final session = ref.read(runningSessionProvider);
-    if (session == null) return;
-
-    final text = '''
-🏃 Running Workout Complete!
-
-📏 Distance: ${_formatDistance(session.currentDistance)} km
-⏱️ Duration: ${_formatTime(session.durationSeconds)}
-⚡ Avg Pace: ${_formatPace(session.avgPace)} /km
-🔥 Calories: ${session.caloriesBurned ?? 0} cal
-
-${session.preMood != null && session.postMood != null ? '💪 Mood: ${session.preMood!.emoji} → ${session.postMood!.emoji}' : ''}
-
-#FlowFit #Running #Fitness
-''';
-
-    await Share.share(text);
+    // Navigate to share achievement screen with Strava-style image overlay
+    Navigator.of(context).pushNamed(
+      '/workout/running/share',
+      arguments: {'session': ref.read(runningSessionProvider)},
+    );
   }
 
   @override
@@ -458,7 +452,7 @@ ${session.preMood != null && session.postMood != null ? '💪 Mood: ${session.pr
 
   Widget _buildHeartRateZones(ThemeData theme, dynamic session) {
     final zones = session.heartRateZones!;
-    final totalSeconds = zones.values.fold<int>(0, (sum, val) => sum + val);
+    final totalSeconds = zones.values.fold<int>(0, (int sum, int val) => sum + val);
 
     if (totalSeconds == 0) return const SizedBox.shrink();
 

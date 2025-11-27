@@ -71,8 +71,10 @@ class WellnessStateService {
     _hrSubscription = _phoneDataListener.heartRateStream.listen(
       (hrData) {
         if (hrData.bpm != null) {
-          print('💓 WellnessStateService: Received HR: ${hrData.bpm} BPM');
+          print('💓 WellnessStateService: Received HR: ${hrData.bpm} BPM, adding to buffer (current size: ${_heartRateBuffer.length})');
           _addHeartRateData(hrData.bpm!);
+        } else {
+          print('⚠️ WellnessStateService: Received HR with null BPM, status: ${hrData.status}');
         }
       },
       onError: (error) {
@@ -83,7 +85,7 @@ class WellnessStateService {
     // Subscribe to sensor batch stream from PhoneDataListener
     _sensorSubscription = _phoneDataListener.sensorBatchStream.listen(
       (batch) {
-        print('📊 WellnessStateService: Received sensor batch with ${batch.sampleCount} samples');
+        print('📊 WellnessStateService: Received sensor batch with ${batch.sampleCount} samples, adding to buffer (current size: ${_motionBuffer.length})');
         _addSensorBatch(batch);
       },
       onError: (error) {
@@ -91,8 +93,8 @@ class WellnessStateService {
       },
     );
 
-    // Run state detection every second
-    _detectionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Run state detection every 5 seconds (not every second to reduce log spam)
+    _detectionTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _detectState();
     });
     
@@ -150,7 +152,7 @@ class WellnessStateService {
   /// Detects current wellness state
   void _detectState() {
     if (_heartRateBuffer.isEmpty || _motionBuffer.isEmpty) {
-      print('⚠️ WellnessStateService: Buffers empty - HR: ${_heartRateBuffer.length}, Motion: ${_motionBuffer.length}');
+      print('! WellnessStateService: Buffers empty - HR: ${_heartRateBuffer.length}, Motion: ${_motionBuffer.length}');
       return;
     }
 
@@ -160,7 +162,7 @@ class WellnessStateService {
     // Calculate average motion magnitude
     final avgMotion = _motionBuffer.reduce((a, b) => a + b) / _motionBuffer.length;
 
-    print('📈 WellnessStateService: Detection - HR: ${avgHeartRate.toStringAsFixed(1)} BPM, Motion: ${avgMotion.toStringAsFixed(2)} m/s²');
+    print('📈 WellnessStateService: Detection - HR: ${avgHeartRate.toStringAsFixed(1)} BPM, Motion: ${avgMotion.toStringAsFixed(2)} m/s², Current State: $_currentState');
 
     // Determine new state based on rules
     final newState = _determineState(avgHeartRate.round(), avgMotion);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/wellness_state.dart';
 import '../../providers/wellness_state_provider.dart';
 import '../../providers/step_counter_provider.dart';
+import '../../providers/running_session_provider.dart';
 import '../../services/wellness_state_service.dart';
 import '../../services/phone_data_listener.dart';
 import '../../widgets/wellness/wellness_state_card.dart';
@@ -61,10 +62,10 @@ class _WellnessTrackerPageState extends ConsumerState<WellnessTrackerPage> {
       await service.startMonitoring();
       print('✅ WellnessTrackerPage: Wellness service started');
       
-      // Start step counting
-      final stepCounter = ref.read(stepCounterServiceProvider);
-      await stepCounter.startCounting();
-      print('✅ WellnessTrackerPage: Step counter started');
+      // Start phone step counting
+      final phoneStepCounter = ref.read(phoneStepCounterServiceProvider);
+      await phoneStepCounter.startCounting();
+      print('✅ WellnessTrackerPage: Phone step counter started');
       
       setState(() {
         _isInitializing = false;
@@ -83,8 +84,8 @@ class _WellnessTrackerPageState extends ConsumerState<WellnessTrackerPage> {
     final service = ref.read(wellnessStateServiceProvider);
     service.stopMonitoring();
     
-    final stepCounter = ref.read(stepCounterServiceProvider);
-    stepCounter.stopCounting();
+    final phoneStepCounter = ref.read(phoneStepCounterServiceProvider);
+    phoneStepCounter.stopCounting();
     
     super.dispose();
   }

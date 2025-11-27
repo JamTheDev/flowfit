@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:solar_icons/solar_icons.dart';
 import '../providers/mood_tracking_provider.dart';
 import '../providers/workout_flow_provider.dart';
 import '../models/mood_rating.dart';
@@ -134,15 +135,15 @@ class _QuickMoodCheckBottomSheetState extends ConsumerState<QuickMoodCheckBottom
           ),
           const SizedBox(height: 32),
 
-          // Emoji buttons
+          // Mood icon buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildMoodButton(context, 1, '😢', 'Very Bad'),
-              _buildMoodButton(context, 2, '😕', 'Bad'),
-              _buildMoodButton(context, 3, '😐', 'Neutral'),
-              _buildMoodButton(context, 4, '🙂', 'Good'),
-              _buildMoodButton(context, 5, '💪', 'Energized'),
+              _buildMoodButton(context, 1, SolarIconsBold.sadCircle, 'Very Bad', Colors.red),
+              _buildMoodButton(context, 2, SolarIconsBold.confoundedCircle, 'Bad', Colors.orange),
+              _buildMoodButton(context, 3, SolarIconsBold.expressionlessCircle, 'Neutral', Colors.grey),
+              _buildMoodButton(context, 4, SolarIconsBold.smileCircle, 'Good', Colors.green),
+              _buildMoodButton(context, 5, SolarIconsBold.fire, 'Energized', const Color(0xFF3B82F6)),
             ],
           ),
           const SizedBox(height: 24),
@@ -151,12 +152,13 @@ class _QuickMoodCheckBottomSheetState extends ConsumerState<QuickMoodCheckBottom
     );
   }
 
-  Widget _buildMoodButton(BuildContext context, int value, String emoji, String label) {
+  Widget _buildMoodButton(BuildContext context, int value, IconData icon, String label, Color color) {
     final theme = Theme.of(context);
 
     return _MoodButtonWithAnimation(
-      emoji: emoji,
+      icon: icon,
       label: label,
+      color: color,
       onTap: () => _selectMood(value),
       theme: theme,
     );
@@ -165,14 +167,16 @@ class _QuickMoodCheckBottomSheetState extends ConsumerState<QuickMoodCheckBottom
 
 /// Mood button with scale animation on tap
 class _MoodButtonWithAnimation extends StatefulWidget {
-  final String emoji;
+  final IconData icon;
   final String label;
+  final Color color;
   final VoidCallback onTap;
   final ThemeData theme;
 
   const _MoodButtonWithAnimation({
-    required this.emoji,
+    required this.icon,
     required this.label,
+    required this.color,
     required this.onTap,
     required this.theme,
   });
@@ -224,13 +228,14 @@ class _MoodButtonWithAnimationState extends State<_MoodButtonWithAnimation>
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: widget.theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                color: widget.color.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Text(
-                  widget.emoji,
-                  style: const TextStyle(fontSize: 32),
+                child: Icon(
+                  widget.icon,
+                  size: 32,
+                  color: widget.color,
                 ),
               ),
             ),
@@ -240,6 +245,7 @@ class _MoodButtonWithAnimationState extends State<_MoodButtonWithAnimation>
             widget.label,
             style: widget.theme.textTheme.bodySmall?.copyWith(
               color: widget.theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

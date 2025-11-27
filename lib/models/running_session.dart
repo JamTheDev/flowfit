@@ -45,6 +45,9 @@ class RunningSession extends WorkoutSession {
   
   /// Total elevation gain in meters
   final int? elevationGain;
+  
+  /// Total steps counted during workout
+  final int? steps;
 
   RunningSession({
     required super.id,
@@ -58,6 +61,7 @@ class RunningSession extends WorkoutSession {
     this.routePoints = const [],
     this.routePolyline,
     this.elevationGain,
+    this.steps,
     super.endTime,
     super.durationSeconds,
     super.preMood,
@@ -95,6 +99,7 @@ class RunningSession extends WorkoutSession {
     List<LatLng>? routePoints,
     String? routePolyline,
     int? elevationGain,
+    int? steps,
     DateTime? endTime,
     int? durationSeconds,
     MoodRating? preMood,
@@ -118,6 +123,7 @@ class RunningSession extends WorkoutSession {
       routePoints: routePoints ?? this.routePoints,
       routePolyline: routePolyline ?? this.routePolyline,
       elevationGain: elevationGain ?? this.elevationGain,
+      steps: steps ?? this.steps,
       endTime: endTime ?? this.endTime,
       durationSeconds: durationSeconds ?? this.durationSeconds,
       preMood: preMood ?? this.preMood,
@@ -145,6 +151,7 @@ class RunningSession extends WorkoutSession {
       if (avgPace != null) 'avg_pace': avgPace,
       if (routePolyline != null) 'route_polyline': routePolyline,
       if (elevationGain != null) 'elevation_gain_m': elevationGain,
+      if (steps != null) 'steps': steps,
       if (endTime != null) 'end_time': endTime!.toIso8601String(),
       if (durationSeconds != null) 'duration_seconds': durationSeconds,
       if (preMood != null) 'pre_workout_mood': preMood!.value,
@@ -173,6 +180,7 @@ class RunningSession extends WorkoutSession {
       avgPace: (json['avg_pace'] as num?)?.toDouble(),
       routePolyline: json['route_polyline'] as String?,
       elevationGain: json['elevation_gain_m'] as int?,
+      steps: json['steps'] as int?,
       endTime: json['end_time'] != null 
           ? DateTime.parse(json['end_time'] as String)
           : null,
