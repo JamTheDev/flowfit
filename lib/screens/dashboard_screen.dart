@@ -1,8 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 import '../presentation/providers/providers.dart';
+import 'home/home_screen.dart';
+import 'health/health_screen.dart';
+import 'track/track_screen.dart';
+import 'progress/progress_screen.dart';
+import 'profile/profile_screen.dart';
 import 'dashboard/home_tab.dart';
 import 'dashboard/health_tab.dart';
 import 'dashboard/track_tab.dart';
@@ -20,11 +24,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const HomeTab(),
-    const HealthTab(),
-    const TrackTab(),
-    const ProgressTab(),
-    const ProfileTab(),
+    const HomeScreen(),
+    const HealthScreen(),
+    const TrackScreen(),
+    const ProgressScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -38,31 +42,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   void _checkAuthState() {
     final authState = ref.read(authNotifierProvider);
-    
-    // If not authenticated, redirect to welcome screen
+
+    // If not authenticated, redirect to login screen
     if (authState.user == null) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/welcome',
-        (route) => false,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final authState = ref.watch(authNotifierProvider);
     
     // Listen for auth state changes
     ref.listen(authNotifierProvider, (previous, next) {
-      // If user logs out, redirect to welcome
+      // If user logs out, redirect to login
       if (next.user == null && mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/welcome',
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/login', (route) => false);
       }
     });
-    
+
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: Container(
