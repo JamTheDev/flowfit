@@ -3,16 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 import '../../theme/app_theme.dart';
 import '../../presentation/providers/providers.dart';
-import 'dart:math';
+import '../../widgets/survey_app_bar.dart';
 
 class SurveyDailyTargetsScreen extends ConsumerStatefulWidget {
   const SurveyDailyTargetsScreen({super.key});
 
   @override
-  ConsumerState<SurveyDailyTargetsScreen> createState() => _SurveyDailyTargetsScreenState();
+  ConsumerState<SurveyDailyTargetsScreen> createState() =>
+      _SurveyDailyTargetsScreenState();
 }
 
-class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScreen> {
+class _SurveyDailyTargetsScreenState
+    extends ConsumerState<SurveyDailyTargetsScreen> {
   int _targetCalories = 2450;
   int _targetSteps = 10000;
   int _targetActiveMinutes = 30;
@@ -38,7 +40,8 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
     final gender = surveyData['gender'] as String? ?? 'male';
     final weight = surveyData['weight'] as double? ?? 70.0;
     final height = surveyData['height'] as double? ?? 170.0;
-    final activityLevel = surveyData['activityLevel'] as String? ?? 'moderately_active';
+    final activityLevel =
+        surveyData['activityLevel'] as String? ?? 'moderately_active';
     final goals = surveyData['goals'] as List<dynamic>? ?? [];
 
     // Calculate BMR using Mifflin-St Jeor Equation
@@ -85,7 +88,9 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
     });
 
     // Save to survey data
-    ref.read(surveyNotifierProvider.notifier).updateSurveyData('dailyCalorieTarget', _targetCalories);
+    ref
+        .read(surveyNotifierProvider.notifier)
+        .updateSurveyData('dailyCalorieTarget', _targetCalories);
   }
 
   Future<void> _handleComplete() async {
@@ -98,13 +103,23 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
     try {
       // Save daily targets to survey data
       final surveyNotifier = ref.read(surveyNotifierProvider.notifier);
-      await surveyNotifier.updateSurveyData('dailyCalorieTarget', _targetCalories);
+      await surveyNotifier.updateSurveyData(
+        'dailyCalorieTarget',
+        _targetCalories,
+      );
       await surveyNotifier.updateSurveyData('dailyStepsTarget', _targetSteps);
-      await surveyNotifier.updateSurveyData('dailyActiveMinutesTarget', _targetActiveMinutes);
-      await surveyNotifier.updateSurveyData('dailyWaterTarget', _targetWaterLiters);
+      await surveyNotifier.updateSurveyData(
+        'dailyActiveMinutesTarget',
+        _targetActiveMinutes,
+      );
+      await surveyNotifier.updateSurveyData(
+        'dailyWaterTarget',
+        _targetWaterLiters,
+      );
 
       // Get user ID from arguments
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final userId = args?['userId'] as String?;
 
       if (userId == null) {
@@ -125,7 +140,7 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
             duration: Duration(seconds: 2),
           ),
         );
-        
+
         // Navigate to dashboard
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
@@ -134,12 +149,11 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
         });
       } else {
         // Show error
-        final errorMessage = ref.read(surveyNotifierProvider).errorMessage ?? 'Failed to save profile';
+        final errorMessage =
+            ref.read(surveyNotifierProvider).errorMessage ??
+            'Failed to save profile';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
@@ -162,8 +176,9 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
 
   String _getActivityLevelDisplay() {
     final surveyData = ref.read(surveyNotifierProvider).surveyData;
-    final activityLevel = surveyData['activityLevel'] as String? ?? 'moderately_active';
-    
+    final activityLevel =
+        surveyData['activityLevel'] as String? ?? 'moderately_active';
+
     switch (activityLevel) {
       case 'sedentary':
         return 'Sedentary';
@@ -183,9 +198,9 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
   String _getGoalsDisplay() {
     final surveyData = ref.read(surveyNotifierProvider).surveyData;
     final goals = surveyData['goals'] as List<dynamic>? ?? [];
-    
+
     if (goals.isEmpty) return 'No goals selected';
-    
+
     final goalNames = goals.map((goal) {
       switch (goal) {
         case 'lose_weight':
@@ -200,7 +215,7 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
           return goal.toString();
       }
     }).toList();
-    
+
     return goalNames.join(', ');
   }
 
@@ -213,31 +228,10 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
     final weight = surveyData['weight'] as double? ?? 0.0;
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Your Daily Targets',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '4/4',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
+      appBar: SurveyAppBar(
+        currentStep: 4,
+        totalSteps: 4,
+        title: 'Your Daily Targets',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -289,64 +283,87 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
-              // Title
-              const Row(
+
+              // Title with icon - consistent with other screens
+              Row(
                 children: [
-                  Icon(SolarIconsBold.target, color: AppTheme.primaryBlue, size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'Personalized Goals',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      SolarIconsBold.target,
+                      color: AppTheme.primaryBlue,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Personalized Goals',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryBlue,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Based on your profile',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              
-              const SizedBox(height: 8),
-              
-              Text(
-                'Based on your profile, here are your recommended daily targets:',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Calorie Target
               Row(
                 children: [
-                  const Icon(SolarIconsBold.fire, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
+                  const Icon(
+                    SolarIconsBold.fire,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
                   Text(
                     'Calorie Target',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: const Color(0xFF314158),
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3), width: 2),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -360,18 +377,16 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Based on: ${age}${gender == 'male' ? 'M' : gender == 'female' ? 'F' : ''}, ${height.toStringAsFixed(0)}cm, ${weight.toStringAsFixed(0)}kg',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
-                      ),
+                      'Based on: $age${gender == 'male'
+                          ? 'M'
+                          : gender == 'female'
+                          ? 'F'
+                          : ''}, ${height.toStringAsFixed(0)}cm, ${weight.toStringAsFixed(0)}kg',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                     Text(
                       '${_getActivityLevelDisplay()} • Goals: ${_getGoalsDisplay()}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
@@ -388,195 +403,92 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Steps Target
-              Row(
-                children: [
-                  const Icon(SolarIconsBold.walking, color: Colors.green, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Steps Target',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+              _buildDiscreteSliderSection(
+                icon: SolarIconsBold.walking,
+                color: Colors.green,
+                title: 'Steps Target',
+                value: _targetSteps,
+                options: _stepsOptions,
+                formatLabel: (val) => '${(val / 1000).toStringAsFixed(0)}K',
+                formatValue: (val) =>
+                    '${val.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} steps',
+                onChanged: (val) => setState(() => _targetSteps = val),
               ),
-              
-              const SizedBox(height: 16),
-              
-              _buildProgressBar(_targetSteps / 15000, Colors.green),
-              
-              const SizedBox(height: 12),
-              
-              Text(
-                '${_targetSteps.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} steps/day',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: _stepsOptions.map((steps) {
-                  return _buildQuickSelectChip(
-                    label: '${(steps / 1000).toStringAsFixed(0)}K',
-                    isSelected: _targetSteps == steps,
-                    onTap: () => setState(() => _targetSteps = steps),
-                    color: Colors.green,
-                  );
-                }).toList(),
-              ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Active Minutes Target
-              Row(
-                children: [
-                  const Icon(SolarIconsBold.clockCircle, color: Colors.purple, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Active Minutes',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+              _buildDiscreteSliderSection(
+                icon: SolarIconsBold.clockCircle,
+                color: Colors.purple,
+                title: 'Active Minutes',
+                value: _targetActiveMinutes,
+                options: _minutesOptions,
+                formatLabel: (val) => '$val',
+                formatValue: (val) => '$val minutes',
+                onChanged: (val) => setState(() => _targetActiveMinutes = val),
               ),
-              
-              const SizedBox(height: 16),
-              
-              _buildProgressBar(_targetActiveMinutes / 60, Colors.purple),
-              
-              const SizedBox(height: 12),
-              
-              Text(
-                '$_targetActiveMinutes minutes/day',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.purple,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: _minutesOptions.map((minutes) {
-                  return _buildQuickSelectChip(
-                    label: '$minutes',
-                    isSelected: _targetActiveMinutes == minutes,
-                    onTap: () => setState(() => _targetActiveMinutes = minutes),
-                    color: Colors.purple,
-                  );
-                }).toList(),
-              ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Water Intake Target
-              Row(
-                children: [
-                  const Icon(Icons.water_drop, color: Colors.blue, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Water Intake',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+              _buildDiscreteSliderSectionDouble(
+                icon: Icons.water_drop,
+                color: Colors.blue,
+                title: 'Water Intake',
+                value: _targetWaterLiters,
+                options: _waterOptions,
+                formatLabel: (val) => '${val.toStringAsFixed(1)}L',
+                formatValue: (val) => '${val.toStringAsFixed(1)} liters',
+                onChanged: (val) => setState(() => _targetWaterLiters = val),
               ),
-              
-              const SizedBox(height: 16),
-              
-              _buildProgressBar(_targetWaterLiters / 3, Colors.blue),
-              
-              const SizedBox(height: 12),
-              
-              Text(
-                '${_targetWaterLiters.toStringAsFixed(1)} liters/day',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 16),
-              
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: _waterOptions.map((liters) {
-                  return _buildQuickSelectChip(
-                    label: '${liters}L',
-                    isSelected: _targetWaterLiters == liters,
-                    onTap: () => setState(() => _targetWaterLiters = liters),
-                    color: Colors.blue,
-                  );
-                }).toList(),
-              ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Info
               Row(
                 children: [
-                  Icon(SolarIconsBold.infoCircle, size: 16, color: Colors.grey[600]),
+                  Icon(
+                    SolarIconsBold.infoCircle,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'You can adjust these anytime in your profile settings',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               Divider(color: Colors.grey[300], thickness: 1),
-              
+
               const SizedBox(height: 24),
-              
+
               // Progress dots
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -586,15 +498,17 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: index == 3 ? AppTheme.primaryBlue : Colors.grey[300],
+                      color: index == 3
+                          ? AppTheme.primaryBlue
+                          : Colors.grey[300],
                       shape: BoxShape.circle,
                     ),
                   );
                 }),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Complete Button
               SizedBox(
                 height: 56,
@@ -641,53 +555,215 @@ class _SurveyDailyTargetsScreenState extends ConsumerState<SurveyDailyTargetsScr
     );
   }
 
-  Widget _buildProgressBar(double progress, Color color) {
-    return Container(
-      height: 12,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: progress.clamp(0.0, 1.0),
-        child: Container(
+  Widget _buildDiscreteSliderSection({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required int value,
+    required List<int> options,
+    required String Function(int) formatLabel,
+    required String Function(int) formatValue,
+    required Function(int) onChanged,
+  }) {
+    final currentIndex = options.indexOf(value);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF314158),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Value Display
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(6),
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            formatValue(value),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            textAlign: TextAlign.center,
           ),
         ),
-      ),
+
+        const SizedBox(height: 24),
+
+        // Discrete Slider
+        Column(
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: color,
+                inactiveTrackColor: color.withValues(alpha: 0.2),
+                thumbColor: color,
+                overlayColor: color.withValues(alpha: 0.2),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                trackHeight: 6,
+                tickMarkShape: const RoundSliderTickMarkShape(
+                  tickMarkRadius: 4,
+                ),
+                activeTickMarkColor: Colors.white,
+                inactiveTickMarkColor: color.withValues(alpha: 0.3),
+              ),
+              child: Slider(
+                value: currentIndex.toDouble(),
+                min: 0,
+                max: (options.length - 1).toDouble(),
+                divisions: options.length - 1,
+                onChanged: (newIndex) {
+                  onChanged(options[newIndex.round()]);
+                },
+              ),
+            ),
+
+            // Labels
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: options.map((opt) {
+                  final isSelected = opt == value;
+                  return Text(
+                    formatLabel(opt),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected ? color : Colors.grey[600],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildQuickSelectChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
+  Widget _buildDiscreteSliderSectionDouble({
+    required IconData icon,
     required Color color,
+    required String title,
+    required double value,
+    required List<double> options,
+    required String Function(double) formatLabel,
+    required String Function(double) formatValue,
+    required Function(double) onChanged,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? color : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : Colors.transparent,
-            width: 2,
+    final currentIndex = options.indexOf(value);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF314158),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Value Display
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            formatValue(value),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            textAlign: TextAlign.center,
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : Colors.grey[700],
-          ),
+
+        const SizedBox(height: 24),
+
+        // Discrete Slider
+        Column(
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: color,
+                inactiveTrackColor: color.withValues(alpha: 0.2),
+                thumbColor: color,
+                overlayColor: color.withValues(alpha: 0.2),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                trackHeight: 6,
+                tickMarkShape: const RoundSliderTickMarkShape(
+                  tickMarkRadius: 4,
+                ),
+                activeTickMarkColor: Colors.white,
+                inactiveTickMarkColor: color.withValues(alpha: 0.3),
+              ),
+              child: Slider(
+                value: currentIndex.toDouble(),
+                min: 0,
+                max: (options.length - 1).toDouble(),
+                divisions: options.length - 1,
+                onChanged: (newIndex) {
+                  onChanged(options[newIndex.round()]);
+                },
+              ),
+            ),
+
+            // Labels
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: options.map((opt) {
+                  final isSelected = opt == value;
+                  return Text(
+                    formatLabel(opt),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected ? color : Colors.grey[600],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
         ),
-      ),
+      ],
     );
   }
 

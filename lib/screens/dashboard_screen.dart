@@ -7,6 +7,11 @@ import 'health/health_screen.dart';
 import 'track/track_screen.dart';
 import 'progress/progress_screen.dart';
 import 'profile/profile_screen.dart';
+import 'dashboard/home_tab.dart';
+import 'dashboard/health_tab.dart';
+import 'dashboard/track_tab.dart';
+import 'dashboard/progress_tab.dart';
+import 'dashboard/profile_tab.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -48,9 +53,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-
     final authState = ref.watch(authNotifierProvider);
-
+    
     // Listen for auth state changes
     ref.listen(authNotifierProvider, (previous, next) {
       // If user logs out, redirect to login
