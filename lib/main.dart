@@ -21,9 +21,6 @@ import 'screens/auth/signup_screen.dart';
 import 'screens/auth/email_verification_screen.dart';
 import 'screens/phone_home.dart';
 import 'screens/phone/phone_heart_rate_screen.dart';
-import 'screens/onboarding/survey_screen_1.dart';
-import 'screens/onboarding/survey_screen_2.dart';
-import 'screens/onboarding/survey_screen_3.dart';
 import 'screens/onboarding/survey_intro_screen.dart';
 import 'screens/onboarding/survey_basic_info_screen.dart';
 import 'screens/onboarding/survey_body_measurements_screen.dart';
@@ -32,12 +29,26 @@ import 'screens/onboarding/survey_daily_targets_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/font_demo_screen.dart';
+import 'screens/profile/settings/general/privacy_policy_screen.dart';
+import 'screens/profile/settings/settings_screen.dart';
+import 'screens/profile/settings/general/notification_settings_screen.dart';
+import 'screens/profile/settings/general/app_integration_screen.dart';
+import 'screens/profile/settings/general/language_settings_screen.dart';
+import 'screens/profile/settings/general/unit_settings_screen.dart';
+import 'screens/profile/settings/general/terms_of_service_screen.dart';
+import 'screens/profile/settings/general/help_support_screen.dart';
+import 'screens/profile/settings/general/about_us_screen.dart';
+import 'screens/profile/settings/change_password_screen.dart';
+import 'screens/profile/settings/delete_account_screen.dart';
+import 'screens/profile/goals/weight_goals_screen.dart';
+import 'screens/profile/goals/fitness_goals_screen.dart';
+import 'screens/profile/goals/nutrition_goals_screen.dart';
 import 'widgets/debug_route_menu.dart';
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized before async operations
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Supabase with configuration from secrets and deep link support
   await Supabase.initialize(
     url: SupabaseConfig.url,
@@ -46,10 +57,10 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce, // Use PKCE flow for mobile security
     ),
   );
-  
+
   // Initialize deep link handler
   DeepLinkHandler().initialize();
-  
+
   runApp(const ProviderScope(child: FlowFitPhoneApp()));
 }
 
@@ -124,16 +135,16 @@ class FlowFitPhoneApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/signup': (context) => const SignUpScreen(),
           '/email_verification': (context) => const EmailVerificationScreen(),
-          // Old survey screens (kept for backward compatibility)
-          '/survey1': (context) => const SurveyScreen1(),
-          '/survey2': (context) => const SurveyScreen2(),
-          '/survey3': (context) => const SurveyScreen3(),
-          // New optimized survey flow
-          '/survey_intro': (context) => const SurveyIntroScreen(),
-          '/survey_basic_info': (context) => const SurveyBasicInfoScreen(),
-          '/survey_body_measurements': (context) => const SurveyBodyMeasurementsScreen(),
-          '/survey_activity_goals': (context) => const SurveyActivityGoalsScreen(),
-          '/survey_daily_targets': (context) => const SurveyDailyTargetsScreen(),
+          // Survey flow (4 steps)
+          '/survey_intro': (context) => const SurveyIntroScreen(), // Step 0
+          '/survey_basic_info': (context) =>
+              const SurveyBasicInfoScreen(), // Step 1
+          '/survey_body_measurements': (context) =>
+              const SurveyBodyMeasurementsScreen(), // Step 2
+          '/survey_activity_goals': (context) =>
+              const SurveyActivityGoalsScreen(), // Step 3
+          '/survey_daily_targets': (context) =>
+              const SurveyDailyTargetsScreen(), // Step 4
           '/onboarding1': (context) => const OnboardingScreen(),
           '/dashboard': (context) => const DashboardScreen(),
           '/trackertest': (context) => const TrackerPage(),
@@ -141,6 +152,21 @@ class FlowFitPhoneApp extends StatelessWidget {
           '/home': (context) => const PhoneHomePage(),
           '/phone_heart_rate': (context) => const PhoneHeartRateScreen(),
           '/font-demo': (context) => const FontDemoScreen(),
+          '/privacy-policy': (context) => const PrivacyPolicyScreen(),
+          '/settings': (context) => const SettingsScreen(),
+          '/notification-settings': (context) =>
+              const NotificationSettingsScreen(),
+          '/app-integration': (context) => const AppIntegrationScreen(),
+          '/language-settings': (context) => const LanguageSettingsScreen(),
+          '/unit-settings': (context) => const UnitSettingsScreen(),
+          '/terms-of-service': (context) => const TermsOfServiceScreen(),
+          '/help-support': (context) => const HelpSupportScreen(),
+          '/change-password': (context) => const ChangePasswordScreen(),
+          '/delete-account': (context) => const DeleteAccountScreen(),
+          '/weight-goals': (context) => const WeightGoalsScreen(),
+          '/fitness-goals': (context) => const FitnessGoalsScreen(),
+          '/nutrition-goals': (context) => const NutritionGoalsScreen(),
+          '/about-us': (context) => const AboutUsScreen(),
         },
       ),
     );
