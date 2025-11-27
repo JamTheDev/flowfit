@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../theme/app_theme.dart';
 import '../../presentation/providers/providers.dart';
 import '../../widgets/survey_app_bar.dart';
+import 'survey_daily_targets_screen.dart';
 
 class SurveyActivityGoalsScreen extends ConsumerStatefulWidget {
   const SurveyActivityGoalsScreen({super.key});
@@ -133,10 +134,12 @@ class _SurveyActivityGoalsScreenState
     if (mounted) {
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      Navigator.pushReplacementNamed(
+      Navigator.push(
         context,
-        '/survey_daily_targets',
-        arguments: args,
+        MaterialPageRoute(
+          builder: (context) => const SurveyDailyTargetsScreen(),
+          settings: RouteSettings(arguments: args),
+        ),
       );
     }
   }
@@ -145,31 +148,10 @@ class _SurveyActivityGoalsScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Activity & Goals',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '3/4',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
+      appBar: const SurveyAppBar(
+        currentStep: 3,
+        totalSteps: 4,
+        title: 'Activity & Goals',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -326,7 +308,7 @@ class _SurveyActivityGoalsScreenState
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryBlue.withOpacity(0.1)
+              ? AppTheme.primaryBlue.withValues(alpha: 0.1)
               : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
           border: Border.all(

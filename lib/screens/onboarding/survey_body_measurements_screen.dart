@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../theme/app_theme.dart';
 import '../../presentation/providers/providers.dart';
 import '../../widgets/survey_app_bar.dart';
+import 'survey_activity_goals_screen.dart';
 
 class SurveyBodyMeasurementsScreen extends ConsumerStatefulWidget {
   const SurveyBodyMeasurementsScreen({super.key});
@@ -81,10 +82,12 @@ class _SurveyBodyMeasurementsScreenState
       if (mounted) {
         final args =
             ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-        Navigator.pushReplacementNamed(
+        Navigator.push(
           context,
-          '/survey_activity_goals',
-          arguments: args,
+          MaterialPageRoute(
+            builder: (context) => const SurveyActivityGoalsScreen(),
+            settings: RouteSettings(arguments: args),
+          ),
         );
       }
     } catch (e) {
@@ -126,22 +129,50 @@ class _SurveyBodyMeasurementsScreenState
 
                           const SizedBox(height: 32),
 
-                          // Title
-                          Text(
-                            'Your measurements',
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryBlue,
+                          // Title with icon
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryBlue.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            'Help us calculate accurate metrics',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(color: Colors.grey[600]),
+                                child: const Icon(
+                                  SolarIconsBold.ruler,
+                                  color: AppTheme.primaryBlue,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Your measurements',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.primaryBlue,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Help us calculate accurate metrics',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
 
                           const SizedBox(height: 40),

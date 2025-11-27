@@ -5,12 +5,16 @@ class SurveyAppBar extends StatelessWidget implements PreferredSizeWidget {
   final int currentStep;
   final int totalSteps;
   final VoidCallback? onBack;
+  final bool showProgressText;
+  final String? title;
 
   const SurveyAppBar({
     super.key,
     required this.currentStep,
     this.totalSteps = 3,
     this.onBack,
+    this.showProgressText = true,
+    this.title,
   });
 
   @override
@@ -18,13 +22,38 @@ class SurveyAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leading: currentStep > 1
+      leading: currentStep > 0
           ? IconButton(
               icon: const Icon(Icons.arrow_back, color: Color(0xFF314158)),
               onPressed: onBack ?? () => Navigator.pop(context),
             )
           : null,
       automaticallyImplyLeading: false,
+      title: title != null
+          ? Text(
+              title!,
+              style: const TextStyle(
+                color: Color(0xFF314158),
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          : null,
+      actions: showProgressText
+          ? [
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Center(
+                  child: Text(
+                    '$currentStep/$totalSteps',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ]
+          : null,
     );
   }
 

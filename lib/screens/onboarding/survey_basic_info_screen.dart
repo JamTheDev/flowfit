@@ -129,7 +129,7 @@ class _SurveyBasicInfoScreenState extends ConsumerState<SurveyBasicInfoScreen> {
       if (mounted) {
         final args =
             ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-        Navigator.pushReplacementNamed(
+        Navigator.pushNamed(
           context,
           '/survey_body_measurements',
           arguments: args,
@@ -276,40 +276,48 @@ class _SurveyBasicInfoScreenState extends ConsumerState<SurveyBasicInfoScreen> {
       key: _formKey,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Decrement Button
-          _buildAdjustButton(
-            icon: Icons.remove_rounded,
-            onTap: canDecrement ? _decrementAge : null,
-            enabled: canDecrement,
+          Transform.translate(
+            offset: const Offset(-4, -16),
+            child: _buildAdjustButton(
+              icon: Icons.remove_rounded,
+              onTap: canDecrement ? _decrementAge : null,
+              enabled: canDecrement,
+            ),
           ),
 
           // Age Display
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TextFormField(
-                  controller: _ageController,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 72,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryBlue,
-                    height: 1.0,
-                    letterSpacing: -3,
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: TextFormField(
+                    controller: _ageController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 64,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryBlue,
+                      height: 1.0,
+                      letterSpacing: -3,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      errorStyle: TextStyle(fontSize: 0, height: 0),
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
+                    ),
+                    validator: _validateAge,
+                    onChanged: (value) => setState(() {}),
                   ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    errorStyle: TextStyle(fontSize: 0, height: 0),
-                    errorBorder: InputBorder.none,
-                    focusedErrorBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    isDense: true,
-                  ),
-                  validator: _validateAge,
-                  onChanged: (value) => setState(() {}),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -326,10 +334,13 @@ class _SurveyBasicInfoScreenState extends ConsumerState<SurveyBasicInfoScreen> {
           ),
 
           // Increment Button
-          _buildAdjustButton(
-            icon: Icons.add_rounded,
-            onTap: canIncrement ? _incrementAge : null,
-            enabled: canIncrement,
+          Transform.translate(
+            offset: const Offset(4, -16),
+            child: _buildAdjustButton(
+              icon: Icons.add_rounded,
+              onTap: canIncrement ? _incrementAge : null,
+              enabled: canIncrement,
+            ),
           ),
         ],
       ),

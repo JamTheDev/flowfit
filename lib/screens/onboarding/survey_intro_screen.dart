@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 import '../../theme/app_theme.dart';
 import '../../presentation/providers/providers.dart';
+import '../../widgets/survey_app_bar.dart';
 
 class SurveyIntroScreen extends ConsumerStatefulWidget {
   const SurveyIntroScreen({super.key});
@@ -66,30 +67,10 @@ class _SurveyIntroScreenState extends ConsumerState<SurveyIntroScreen>
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'Quick Setup',
-          style: TextStyle(
-            color: Color(0xFF314158),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '0/4',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
+      appBar: const SurveyAppBar(
+        currentStep: 0,
+        totalSteps: 4,
+        title: 'Quick Setup',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -332,7 +313,7 @@ class _SurveyIntroScreenState extends ConsumerState<SurveyIntroScreen>
                                 'name': displayName,
                                 ...?args,
                               };
-                              Navigator.pushReplacementNamed(
+                              Navigator.pushNamed(
                                 context,
                                 '/survey_basic_info',
                                 arguments: surveyArgs,
