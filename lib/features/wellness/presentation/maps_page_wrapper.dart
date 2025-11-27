@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/geofence_repository.dart';
-import '../domain/geofence_mission.dart';
 import '../services/geofence_service.dart';
 import 'maps_page.dart';
 import '../services/notification_service.dart';
