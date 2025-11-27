@@ -4,20 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/dashboard_providers.dart';
+import '../presentation/providers/providers.dart';
 import '../widgets/page_header.dart';
 import 'home/widgets/home_header.dart';
 import 'home/widgets/stats_section.dart';
 import 'home/widgets/cta_section.dart';
 import 'home/widgets/recent_activity_section.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
@@ -29,10 +30,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Check auth state on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuthState();
+    });
+  }
+
+  void _checkAuthState() {
+    final authState = ref.read(authNotifierProvider);
+    
+    // If not authenticated, redirect to welcome screen
+    if (authState.user == null) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/welcome',
+        (route) => false,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
+    final authState = ref.watch(authNotifierProvider);
+    
+    // Listen for auth state changes
+    ref.listen(authNotifierProvider, (previous, next) {
+      // If user logs out, redirect to welcome
+      if (next.user == null && mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/welcome',
+          (route) => false,
+        );
+      }
+    });
+    
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: Container(
