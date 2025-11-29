@@ -160,13 +160,9 @@ class FlowFitPhoneApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
-        // In debug mode, use 'home' to bypass route navigation
-        // This prevents SplashScreen from auto-navigating away
-        home: kDebugMode ? const YoloDebugScreen() : null,
-        initialRoute: kDebugMode ? null : initialRoute,
         routes: {
           // Only include '/' route in non-debug mode to avoid conflict with 'home'
-          if (!kDebugMode) '/': (context) => const SplashScreen(),
+          '/': (context) => const SplashScreen(),
           '/loading': (context) => const LoadingScreen(),
           '/welcome': (context) => const WelcomeScreen(),
           '/login': (context) => const LoginScreen(),
